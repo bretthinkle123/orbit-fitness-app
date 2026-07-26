@@ -1,0 +1,45 @@
+# Semgrep ignore file — the committed, human-reviewable scan-scope config CI honors
+# (.github/workflows/pipeline-ci.yml runs semgrep with `--config auto --severity ERROR`).
+#
+# WHY THIS FILE EXISTS: Semgrep's BUILT-IN default ignore list excludes `tests/`, so the
+# entire backend test suite was silently unscanned — a real coverage hole, and one that
+# also breaks the pipeline's scan-scope reconciliation (every changed .py must appear in
+# semgrep's paths.scanned). Declaring the ignore list explicitly here replaces that
+# default: dependency/build/vendor noise stays out, but OUR code — including tests/ —
+# is scanned. Test code handles credentials and builds requests; it deserves the net.
+#
+# This file is NOT a finding-waiver channel. Per-finding waivers are `# nosemgrep: <rule-id>`
+# comments at the flagged line, so each suppression is visible in the diff at its own site.
+
+# Version control / tooling metadata
+.git/
+.github/actions/**/node_modules/
+.pipeline/
+
+# Python virtualenvs, caches and build output
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# JS/vendored dependencies
+node_modules/
+vendor/
+*.min.js
+
+# Xcode / Swift build output (Swift is reduced-assurance for these scanners anyway)
+.build/
+DerivedData/
+*.xcworkspace/
+*.xcodeproj/
+
+# Terraform local state and provider plugins (never the .tf sources themselves)
+.terraform/
+*.tfstate
+*.tfstate.backup

@@ -1,0 +1,8 @@
+# Copy to backend.hcl (gitignored) and fill in for a real
+# `terraform init -backend-config=backend.hcl`. The filled-in file names a
+# real account's resources, not a secret, but it stays out of git so a
+# committed value can never silently drift from the account actually in use.
+bucket         = "orbit-terraform-state-<account-id>"
+key            = "orbit/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "orbit-terraform-locks"

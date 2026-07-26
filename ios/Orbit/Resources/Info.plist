@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Real Info.plist (T13), replacing T11's `GENERATE_INFOPLIST_FILE` placeholder
+  — referenced via `INFOPLIST_FILE` in `project.yml`, and EXCLUDED from the
+  generic `Resources` Copy-Bundle-Resources phase there (a file used as
+  `INFOPLIST_FILE` must not ALSO be copied as a plain resource, or the build
+  produces a duplicate-Info.plist error).
+
+  App Transport Security (ATS): deliberately NO NSAppTransportSecurity key
+  at all in this file — that is ATS fully ON with zero exceptions (the
+  store-compliance.sh SC-3 rule only flags the arbitrary-loads override
+  being enabled; omitting the dictionary entirely is the same "no
+  exceptions" outcome, more honestly, since there is genuinely nothing to
+  configure). NOTE FOR ANY FUTURE EDITOR OF THIS COMMENT: do not spell the
+  override key name followed by an equals-and-true literal in this file at
+  all, even in prose — store-compliance.sh's SC-3 check greps this file's
+  raw text, comments included, for exactly that shape, and a past draft of
+  this very sentence self-triggered a false-positive warning that way.
+  `OrbitAPIBaseURL` below must therefore be an HTTPS origin in any build
+  that isn't purely local-simulator development; local plain-HTTP
+  dev-server testing against a strict-ATS app is a known Mac-phase operator
+  concern (`.pipeline/implementation-progress.md`'s T13 entry), not
+  something this committed file works around.
+-->
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<!-- CLAUDE.md: "Orbit" stays the short home-screen label (CFBundleDisplayName)
+	     — the full 30-char App Store name ("Orbit Fitness & Diet Tracking") is a
+	     submission-metadata field (App Store Connect), not an Info.plist key. -->
+	<key>CFBundleDisplayName</key>
+	<string>Orbit</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+
+	<!-- AC32/SC-8: set (not absent) so App Store Connect never asks the
+	     export-compliance question on upload — the app uses only standard
+	     OS-provided TLS (via URLSession/ATS) and Firebase's own SDK crypto,
+	     no proprietary/non-exempt encryption of its own. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
+	<!-- The fixed single-column phone design (design-spec: reference frame
+	     402x874pt, "no multi-column / wide-screen variant is depicted") is
+	     portrait-only for now; iPad/landscape is an explicit open item, not
+	     a silent omission. -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+
+	<!-- Opts into a plain system launch screen with no storyboard file
+	     (supported iOS 14+; this app targets 17+) — the starfield/hero
+	     backdrop paints in immediately after, so a bespoke launch screen
+	     asset isn't needed. -->
+	<key>UILaunchScreen</key>
+	<dict/>
+
+	<!-- The backend base URL — a build-configuration value, never a
+	     hardcoded literal in Swift source (`App/OrbitApp.swift`'s
+	     `resolveAPIBaseURL()` reads this key). Local dev default per
+	     CLAUDE.md's "How to run" (port 8001 on this repo's own dev host);
+	     override per build configuration once a staging/production HTTPS
+	     endpoint exists (plan.md Open Question 1's infra depth). -->
+	<key>OrbitAPIBaseURL</key>
+	<string>http://localhost:8001</string>
+
+	<!-- UIAppFonts wiring per Resources/Fonts/FONTS-TODO.md (that file's
+	     step 2, explicitly assigned to this task): the seven filenames
+	     `Font+Theme.swift` expects, listed now even though the `.ttf`
+	     binaries themselves aren't bundled yet (FONTS-TODO.md's step 1) —
+	     `OrbitFontFamily.isEmbedded` checks at runtime and falls back to the
+	     recorded SF substitute until they land, so an incomplete
+	     `UIAppFonts` array never breaks the app, only silently keeps every
+	     family on the fallback path. -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>SpaceGrotesk-Regular.ttf</string>
+		<string>SpaceGrotesk-Medium.ttf</string>
+		<string>SpaceGrotesk-SemiBold.ttf</string>
+		<string>SpaceGrotesk-Bold.ttf</string>
+		<string>DMSans-Regular.ttf</string>
+		<string>DMSans-Medium.ttf</string>
+		<string>DMSans-Bold.ttf</string>
+	</array>
+</dict>
+</plist>

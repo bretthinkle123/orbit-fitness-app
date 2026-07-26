@@ -1,0 +1,1904 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.149.0/three.min.js"></script>
+<style>
+html,body{margin:0;background:#0d0917;font-family:'DM Sans',system-ui,sans-serif}
+a{color:#e879f9}a:hover{color:#f0abfc}
+.pscroll{scrollbar-width:none}
+.pscroll::-webkit-scrollbar{display:none}
+@keyframes oPulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes oFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+.dv-turn{padding:40px 44px 60px;scroll-margin-top:16px;background:#0d0917;min-height:100vh;box-sizing:border-box}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}
+.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#e9e2f7;color:#17101f;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 'Space Grotesk',sans-serif;color:#efe9fa}
+.dv-sub{margin:0 0 26px;font:12px/1.65 'DM Sans',sans-serif;color:rgba(233,226,247,.55);max-width:880px}
+.dv-rowhd{display:flex;align-items:baseline;gap:10px;margin:10px 0 16px}
+.dv-opts{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start;margin-bottom:44px}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:10px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.12);color:#efe9fa;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11.5px/1.3 'DM Sans',sans-serif;color:rgba(233,226,247,.6)}
+.dv-opt:target .dv-oid{background:#a855f7;color:#fff}
+.dv-next{margin:8px 0 0;font:12px/1.5 'DM Sans',sans-serif;color:rgba(233,226,247,.5)}
+</style>
+</helmet>
+<!--
+  ═══════════════════════════════════════════════════════════════════════════════════════
+  ORBIT · "Nebula Glass" — space-themed fitness + diet tracker (hi-fi interactive prototype).
+  4 iPhone screens: 1a Home (dashboard) / 1b Fuel (diet log) / 1c Train (workout) / 1d Body (muscle map).
+
+  REBUILD SPEC — this block + the per-screen comments below are sufficient to recreate the design 1:1.
+  Deep porting docs: design_handoff_orbit_swiftui/README.md (tokens, behavior, 3D specs) and
+  figure-paths.md (Body figure geometry). All runtime logic: the commented <script data-dc-script>
+  class at the bottom of this file.
+
+  DESIGN vs SCAFFOLDING
+  · THE DESIGN = the contents of each <x-import "IOSDevice"> block: one full 402x874pt iPhone
+    screen each. Recreate these pixel-for-pixel.
+  · NOT the design (gallery chrome, do not port): .dv-* wrappers/badges, the "Try next" footer,
+    <meta design_doc_mode>, ios-frame.jsx device bezel, support.js runtime, hint-* attributes.
+
+  LAYER STACK (same on all four screens; absolutely positioned inside the phone)
+    z0 <canvas id="bg-a-*">  animated starfield + nebula, painted by _drawBg (seed: home 5 / fuel 6 / train 7 / body 8)
+    z1 <div id="gl-a-*">     3D hero host, top 440px; Three.js scene mounted by _makeScene; parallax translateY
+                             up to -95px with scroll; holds a blurred radial glow disc; Body screen has none
+    z2 <div id="sc-a-*">     THE scrollable content column · padding 64px 16px 140px · a fixed-height top
+                             spacer reserves the hero (Home 244 / Fuel 224 / Train 214px)
+    z3 bottom fade           112px linear-gradient(0deg,#04050e 25%,transparent), pointer-events:none
+    z4 tab bar               floating glass pill (left/right 14px, bottom 16px): fill rgba(22,13,42,.78), blur 18px,
+                             radius 26px; icons: ringed planet=Home · orbit=Fuel · diamond asteroid=Train · person=Body;
+                             active tab = rgba(255,255,255,.09) pill + #f3e8ff icon/label; markup is identical on
+                             every screen, only the active item moves
+    z6 settings sheet        Home only, slides in from the right via {{ setsTx }}
+
+  RECURRING TOKENS (inline styles repeat these literally — copy verbatim)
+    screen bg      #04050e + two radial washes rgba({{ rPriD2 }},.30)/(.35) (top-right / bottom-left)
+    card           background rgba(23,15,44,.32) · border 1px solid rgba(255,255,255,.10) · radius 22px · backdrop blur 4px
+    small chip     background rgba(23,15,44,.38) · radius 10-14px
+    section label  Space Grotesk 10.5px/600 · letter-spacing .18em · uppercase · rgba(216,206,238,.55)
+    text           #f4f0ff · muted rgba(216,206,238,.62) · faint rgba(216,206,238,.45-.55)
+    type           numbers/display/wordmarks 'Space Grotesk' · body 'DM Sans'
+    CTA pill       46px tall, radius 23px, linear-gradient(135deg,{{ cPri }},{{ cSec }}), shadow 0 6px 22px rgba({{ rSec }},.35)
+    ring math      SVG progress rings rotate(-90) to start at 12 o'clock; stroke-dasharray = circumference
+                   (r54: 339.3 / r24: 150.8); progress = dashoffset hole
+
+  TEMPLATE HOLES ({{ name }} = key returned by Component.renderVals(); dotted lookups only, no expressions)
+    hex colors     cPri cSec cAcc (palette primary/secondary/accent) · cSecL cPriL cPriLL (white-blended tints)
+    "r,g,b" trios  rPri rSec rSecL rAcc rPriL rPriD rPriD2 — for rgba({{ x }},alpha) interpolation
+    muscle fills   mTraps mDelts mChest mBiceps mFore mCore mQuads mCalves mLats mTri mLow mGlutes mHams
+                   (level color from the 6-stop scale) · fxChestA/fxDeltsA/fxTriA = glow when trained today
+    suffix "A"     per-screen-variant keys built by mk('a'): calRemA, scoreA, exA, quickA, ...
+    SHARED STORE   all four screens bind one state: quick-add on Fuel moves Home's ring + macro bars +
+                   the 3D food moons; set toggles on Train tick scoreA everywhere, heat the asteroid,
+                   and light Body muscles.
+
+  Helmet CSS is intentionally minimal: fonts, .pscroll (hidden scrollbars), oPulse/oFloat keyframes,
+  gallery chrome. ALL component styling is inline on the elements.
+  SwiftUI mapping: each screen = ZStack { StarfieldCanvas; HeroScene; ScrollView; TabBar } in an iPhone frame.
+  ═══════════════════════════════════════════════════════════════════════════════════════
+-->
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">ORBIT — Stronger × MacroFactor, nebula edition</span></div>
+<p class="dv-sub">Four screens: Home dashboard, Fuel (diet log), Train (workout logging) and Body (results — the geometric human colored by per-muscle strength level, M / W toggle). Every screen sits on a live outer-space background: drifting star clusters that shift as you scroll, shooting stars, and the occasional passing ship. The WebGL object on Home / Fuel / Train rotates and re-frames on scroll. Interactions are shared across screens: quick-add dinner on Fuel and the rings + macro moons react; tap set circles on Train and the score ticks, the asteroid heats, and trained muscles light up on Body.</p>
+<div class="dv-rowhd"><span style="font:600 11px 'Space Grotesk',sans-serif;letter-spacing:.2em;color:#cbb8f0;text-transform:uppercase">Nebula Glass</span><span style="font:11px 'DM Sans',sans-serif;color:rgba(233,226,247,.45)">frosted cards · soft glow · screens <a class="dv-oid" href="#1a">1a</a>–<a class="dv-oid" href="#1d">1d</a></span></div>
+<div class="dv-opts">
+
+<!-- ═══ SCREEN 1a · HOME — daily dashboard ═══
+     z2 content order: header (gradient dot + ORBIT wordmark · 30px "AK" avatar, onClick opens the Settings sheet)
+     → 244px hero spacer → greeting block (25px/600 + pulsing status dot + date line)
+     → "Your system" planet-picker card → calories ring card (124px ring + Eaten/Burned/Budget column)
+     → Macros card (3 bars) → Today's mission card (gradient CTA) → Strength score + Burn rate chip pair
+     → Weight trend card (static sparkline). 3D hero: gas giant; ring count = planet level; cruiser + moons orbit. -->
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Home — daily dashboard</div>
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px" style="width:402px;height:874px;flex:none">
+<div data-screen-label="1a Home" style="position:relative;height:100%;overflow:hidden;background:radial-gradient(150% 70% at 80% -15%,rgba({{ rPriD2 }},.30),transparent 55%),radial-gradient(120% 55% at 0% 100%,rgba({{ rPriD2 }},.35),transparent 60%),#04050e;font-family:'DM Sans',sans-serif;color:#f4f0ff">
+<canvas id="bg-a-home" style="position:absolute;inset:0;width:100%;height:100%;z-index:0"></canvas>
+<div id="gl-a-home" style="position:absolute;top:0;left:0;right:0;height:440px;z-index:1;will-change:transform">
+<div style="position:absolute;top:84px;left:50%;transform:translateX(-50%);width:230px;height:230px;border-radius:50%;background:radial-gradient(circle,rgba({{ rPri }},.28),rgba({{ rSec }},.10) 55%,transparent 72%);filter:blur(8px)"></div>
+</div>
+<div class="pscroll" id="sc-a-home" style="position:absolute;inset:0;overflow-y:auto;z-index:2">
+<div style="padding:64px 16px 140px">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px">
+<div style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,{{ cPri }},{{ cSec }});box-shadow:0 0 9px rgba({{ rSec }},.8)"></span><span style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;letter-spacing:.24em">ORBIT</span></div>
+<div onClick="{{ openSets }}" style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,rgba({{ rPri }},.5),rgba({{ rSec }},.5));border:1px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;cursor:pointer;transition:transform .2s" style-active="transform:scale(.9)">AK</div>
+</div>
+<!-- hero spacer: the 3D scene in #gl-a-home (z1) shows through this gap; content scrolls over it -->
+<div style="height:244px"></div>
+<div style="margin:0 4px 18px">
+<div style="font-family:'Space Grotesk',sans-serif;font-size:25px;font-weight:600;letter-spacing:-.01em">Good evening, Alex</div>
+<div style="display:flex;align-items:center;gap:7px;margin-top:5px;font-size:12.5px;color:rgba(216,206,238,.62)"><span style="width:7px;height:7px;border-radius:50%;background:{{ cSecL }};box-shadow:0 0 8px rgba({{ rSecL }},.9);animation:oPulse 2.4s ease-in-out infinite"></span>Tue 7 Jul · Day 12 in orbit</div>
+</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:14px 16px;margin-bottom:12px">
+<div style="display:flex;justify-content:space-between;align-items:baseline">
+<div style="font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:rgba(216,206,238,.55)">Your system</div>
+<div style="font-size:10.5px;color:rgba(216,206,238,.55)">{{ planetMetaA }}</div>
+</div>
+<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+<!-- planet-picker chips, items {name,onSel,dotBg,bg,bd,col}; dot = level color; tap re-textures the 3D hero + sets ring count = index -->
+<sc-for list="{{ planetsA }}" as="p" hint-placeholder-count="6">
+<div onClick="{{ p.onSel }}" style="display:flex;align-items:center;gap:5px;padding:5px 9px;border-radius:12px;font-size:10px;font-weight:500;cursor:pointer;background:{{ p.bg }};border:1px solid {{ p.bd }};color:{{ p.col }};transition:all .25s" style-active="transform:scale(.94)"><span style="width:8px;height:8px;border-radius:50%;background:{{ p.dotBg }}"></span>{{ p.name }}</div>
+</sc-for>
+</div>
+<div style="font-size:11px;color:rgba(216,206,238,.62);margin-top:9px">Orbiting <span style="font-weight:600;color:{{ cAcc }}">{{ planetNameA }}</span> · rank up to travel further</div>
+</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:18px;display:flex;align-items:center;gap:16px">
+<div style="position:relative;width:124px;height:124px;flex:none">
+<!-- calories ring: r=54 so C=339.3; calOffA = 339.3*(1 - eaten/2350); secondary stroke, round cap, glow, .7s ease -->
+<svg width="124" height="124">
+<circle cx="62" cy="62" r="54" style="fill:none;stroke:rgba(255,255,255,.09);stroke-width:9"></circle>
+<circle cx="62" cy="62" r="54" transform="rotate(-90 62 62)" style="fill:none;stroke:{{ cSec }};stroke-width:9;stroke-linecap:round;stroke-dasharray:339.3;stroke-dashoffset:{{ calOffA }}px;filter:drop-shadow(0 0 7px rgba({{ rSec }},.55));transition:stroke-dashoffset .7s cubic-bezier(.22,1,.36,1)"></circle>
+</svg>
+<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+<div style="font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;line-height:1">{{ calRemA }}</div>
+<div style="font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(216,206,238,.55);margin-top:4px">kcal left</div>
+</div>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;color:rgba(216,206,238,.62)">Eaten</span><span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px">{{ eatenA }}</span></div>
+<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;color:rgba(216,206,238,.62)">Burned</span><span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px">+412</span></div>
+<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;color:rgba(216,206,238,.62)">Budget</span><span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px">2,350</span></div>
+</div>
+</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px 18px;margin-top:12px;display:flex;flex-direction:column;gap:12px">
+<div style="font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:rgba(216,206,238,.55)">Macros</div>
+<!-- macro bars, items {label,color,w,txt}; colors cSecL / cPri / cAcc; width animates .6s -->
+<sc-for list="{{ barsA }}" as="m" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="width:52px;font-size:12px;color:rgba(216,206,238,.75)">{{ m.label }}</span>
+<div style="flex:1;height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden"><div style="height:100%;border-radius:4px;background:{{ m.color }};width:{{ m.w }};transition:width .6s cubic-bezier(.22,1,.36,1)"></div></div>
+<span style="width:76px;text-align:right;font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;color:rgba(244,240,255,.9)">{{ m.txt }}</span>
+</div>
+</sc-for>
+</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:18px;margin-top:12px">
+<div style="font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:rgba(216,206,238,.55)">Today's mission</div>
+<div style="font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:600;margin-top:8px">Push Day</div>
+<div style="font-size:12px;color:rgba(216,206,238,.62);margin-top:3px">5 exercises · ~52 min · Chest focus</div>
+<div style="margin-top:14px;height:46px;border-radius:23px;background:linear-gradient(135deg,{{ cPri }},{{ cSec }});display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14.5px;letter-spacing:.02em;cursor:pointer;box-shadow:0 6px 22px rgba({{ rSec }},.35)" style-hover="filter:brightness(1.12)" style-active="transform:scale(.98)">Start Push Day</div>
+</div>
+<div style="display:flex;gap:12px;margin-top:12px">
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);flex:1;padding:14px 16px">
+<div style="font-family:'Space Grotesk',sans-serif;font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:rgba(216,206,238,.55)">Strength score</div>
+<div style="display:flex;align-items:baseline;gap:6px;margin-top:6px"><span style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700">{{ scoreA }}</span><span style="font-size:11px;color:{{ cAcc }}">{{ scoreDeltaA }}</span></div>
+<div style="font-size:11px;color:rgba(216,206,238,.62);margin-top:2px">Intermediate II</div>
+</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);flex:1;padding:14px 16px">
+<div style="font-family:'Space Grotesk',sans-serif;font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:rgba(216,206,238,.55)">Burn rate</div>
+<div style="display:flex;align-items:baseline;gap:6px;margin-top:6px"><span style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700">2,847</span><span style="font-size:11px;color:{{ cAcc }}">↑ 32</span></div>
+<div style="font-size:11px;color:rgba(216,206,238,.62);margin-top:2px">kcal / day est.</div>
+</div>
+</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px 18px;margin-top:12px">
+<div style="display:flex;justify-content:space-between;align-items:baseline">
+<div style="font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:rgba(216,206,238,.55)">Weight trend</div>
+<div style="font-size:11px;color:rgba(216,206,238,.5)">30 days</div>
+</div>
+<div style="display:flex;align-items:baseline;gap:8px;margin-top:8px"><span style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700">182.4 lb</span><span style="font-size:11.5px;color:{{ cAcc }}">↓ 0.4 lb / wk</span></div>
+<!-- static 30-day weight sparkline: soft area fill + cSecL trend line + scattered weigh-in dots (rAcc .55) + end dot; coordinates are design data, copy verbatim -->
+<svg width="318" height="72" style="display:block;margin-top:10px">
+<polygon points="0,20 24,22 49,25 73,26 98,29 122,30 147,33 171,35 196,36 220,39 245,42 269,44 294,46 318,49 318,72 0,72" style="fill:rgba({{ rSec }},.10)"></polygon>
+<polyline points="0,20 24,22 49,25 73,26 98,29 122,30 147,33 171,35 196,36 220,39 245,42 269,44 294,46 318,49" style="fill:none;stroke:{{ cSecL }};stroke-width:2;stroke-linecap:round"></polyline>
+<circle cx="24" cy="16" r="2.4" style="fill:rgba({{ rAcc }},.55)"></circle>
+<circle cx="73" cy="31" r="2.4" style="fill:rgba({{ rAcc }},.55)"></circle>
+<circle cx="122" cy="24" r="2.4" style="fill:rgba({{ rAcc }},.55)"></circle>
+<circle cx="171" cy="40" r="2.4" style="fill:rgba({{ rAcc }},.55)"></circle>
+<circle cx="220" cy="33" r="2.4" style="fill:rgba({{ rAcc }},.55)"></circle>
+<circle cx="294" cy="52" r="2.4" style="fill:rgba({{ rAcc }},.55)"></circle>
+<circle cx="318" cy="49" r="3" style="fill:{{ cSecL }}"></circle>
+</svg>
+</div>
+</div>
+</div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:112px;z-index:3;pointer-events:none;background:linear-gradient(0deg,#04050e 25%,transparent)"></div>
+<div style="position:absolute;left:14px;right:14px;bottom:16px;z-index:4;display:flex;gap:4px;padding:6px;border-radius:26px;background:rgba(22,13,42,.78);border:1px solid rgba(255,255,255,.09);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)">
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;background:rgba(255,255,255,.09);cursor:pointer"><svg width="20" height="20"><circle cx="10" cy="10" r="4.6" style="fill:#f3e8ff"></circle><ellipse cx="10" cy="10" rx="8.6" ry="3" transform="rotate(-18 10 10)" style="fill:none;stroke:#f3e8ff;stroke-width:1.3;opacity:.75"></ellipse></svg><span style="font-size:9.5px;font-weight:600;color:#f3e8ff">Home</span></div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;cursor:pointer"><svg width="20" height="20"><circle cx="10" cy="10" r="2.6" style="fill:rgba(216,206,238,.42)"></circle><circle cx="10" cy="10" r="7.6" style="fill:none;stroke:rgba(216,206,238,.42);stroke-width:1.2;opacity:.65"></circle><circle cx="16.4" cy="6" r="1.9" style="fill:rgba(216,206,238,.42)"></circle></svg><span style="font-size:9.5px;color:rgba(216,206,238,.42)">Fuel</span></div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;cursor:pointer"><svg width="20" height="20"><path d="M10 2.6 L17.4 10 L10 17.4 L2.6 10 Z" style="fill:none;stroke:rgba(216,206,238,.42);stroke-width:1.6;stroke-linejoin:round"></path><circle cx="10" cy="10" r="1.7" style="fill:rgba(216,206,238,.42)"></circle></svg><span style="font-size:9.5px;color:rgba(216,206,238,.42)">Train</span></div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;cursor:pointer"><svg width="20" height="20"><circle cx="10" cy="5.5" r="3.2" style="fill:rgba(216,206,238,.42)"></circle><rect x="5.5" y="10" width="9" height="8" rx="4" style="fill:rgba(216,206,238,.42)"></rect></svg><span style="font-size:9.5px;color:rgba(216,206,238,.42)">Body</span></div>
+</div>
+<!-- SETTINGS SHEET (z6, Home only) — slides translateX(102% → 0) .5s over everything incl. tab bar; back button closes.
+     Sections: profile card (+ current-planet chip) · MISSION (budget row / macro split row / adaptive toggle)
+     · PREFERENCES (Metric/Imperial segmented + Reminders/Haptics toggles) · SYSTEM (appearance, export, sign out)
+     · version footer. Toggle knobs + segmented styles are computed in _setsVals(). -->
+<div data-screen-label="1a Settings" style="position:absolute;inset:0;z-index:6;transform:{{ setsTx }};transition:transform .5s cubic-bezier(.22,1,.36,1);background:radial-gradient(150% 70% at 80% -15%,rgba({{ rPriD2 }},.5),transparent 55%),radial-gradient(120% 55% at 0% 100%,rgba({{ rPriD2 }},.55),transparent 60%),#04050e;display:flex;flex-direction:column;font-family:'DM Sans',sans-serif;color:#f4f0ff">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:64px 16px 10px">
+<div onClick="{{ closeSets }}" style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .2s" style-active="transform:scale(.9)"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M10 3 L5 8 L10 13" style="fill:none;stroke:#e9dcff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"></path></svg></div>
+<span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px">Settings</span>
+<span style="width:34px;flex:none"></span>
+</div>
+<div class="pscroll" style="flex:1;overflow-y:auto">
+<div style="padding:8px 16px 48px">
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px;display:flex;align-items:center;gap:13px">
+<div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,rgba({{ rPri }},.6),rgba({{ rSec }},.6));border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600;flex:none">AK</div>
+<div style="flex:1">
+<div style="font-family:'Space Grotesk',sans-serif;font-size:16.5px;font-weight:600">Alex Kepler</div>
+<div style="font-size:11.5px;color:rgba(216,206,238,.55);margin-top:2px">alex.kepler@orbit.app</div>
+</div>
+<div style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);font-size:10px;color:{{ cAcc }};flex:none"><span style="width:7px;height:7px;border-radius:50%;background:{{ cAcc }};box-shadow:0 0 7px rgba({{ rAcc }},.8)"></span>{{ setsPlanet }}</div>
+</div>
+<div style="font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:rgba(216,206,238,.55);margin:20px 4px 8px">Mission</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:3px 16px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 0;cursor:pointer">
+<span style="font-size:13.5px;color:#f1ecfd">Daily budget</span>
+<span style="display:flex;align-items:center;gap:7px"><span style="font-family:'Space Grotesk',sans-serif;font-size:12.5px;font-weight:600;color:rgba(244,240,255,.85)">2,350 kcal</span><svg width="13" height="13" viewBox="0 0 14 14" style="opacity:.4"><path d="M5 3 L10 7 L5 11" style="fill:none;stroke:#e9dcff;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"></path></svg></span>
+</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 0;border-top:1px solid rgba(255,255,255,.06);cursor:pointer">
+<span style="font-size:13.5px;color:#f1ecfd">Macro split</span>
+<span style="display:flex;align-items:center;gap:7px"><span style="font-family:'Space Grotesk',sans-serif;font-size:12.5px;font-weight:600;color:rgba(244,240,255,.85)">40P &#183; 35C &#183; 25F</span><svg width="13" height="13" viewBox="0 0 14 14" style="opacity:.4"><path d="M5 3 L10 7 L5 11" style="fill:none;stroke:#e9dcff;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"></path></svg></span>
+</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 0;border-top:1px solid rgba(255,255,255,.06)">
+<span><span style="display:block;font-size:13.5px;color:#f1ecfd">Adaptive targets</span><span style="display:block;font-size:11px;color:rgba(216,206,238,.5);margin-top:2px">Auto-adjusts from your weekly trend</span></span>
+<span onClick="{{ toggleAdapt }}" style="display:block;width:42px;height:25px;border-radius:13px;background:{{ adaptBg }};position:relative;cursor:pointer;transition:background .3s;flex:none"><span style="position:absolute;top:2.5px;left:2.5px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.4);transform:{{ adaptKnob }};transition:transform .3s cubic-bezier(.22,1,.36,1)"></span></span>
+</div>
+</div>
+<div style="font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:rgba(216,206,238,.55);margin:20px 4px 8px">Preferences</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:3px 16px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0">
+<span><span style="display:block;font-size:13.5px;color:#f1ecfd">Units</span><span style="display:block;font-size:11px;color:rgba(216,206,238,.5);margin-top:2px">{{ unitsHint }}</span></span>
+<span style="display:flex;gap:3px;padding:3px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);flex:none">
+<span onClick="{{ selUnitM }}" style="display:block;padding:5px 11px;border-radius:9px;font-size:11px;font-weight:500;cursor:pointer;background:{{ unitMBg }};color:{{ unitMCol }};border:{{ unitMBd }};transition:all .25s">Metric</span>
+<span onClick="{{ selUnitI }}" style="display:block;padding:5px 11px;border-radius:9px;font-size:11px;font-weight:500;cursor:pointer;background:{{ unitIBg }};color:{{ unitICol }};border:{{ unitIBd }};transition:all .25s">Imperial</span>
+</span>
+</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 0;border-top:1px solid rgba(255,255,255,.06)">
+<span><span style="display:block;font-size:13.5px;color:#f1ecfd">Reminders</span><span style="display:block;font-size:11px;color:rgba(216,206,238,.5);margin-top:2px">Meal &amp; workout nudges</span></span>
+<span onClick="{{ toggleRem }}" style="display:block;width:42px;height:25px;border-radius:13px;background:{{ remBg }};position:relative;cursor:pointer;transition:background .3s;flex:none"><span style="position:absolute;top:2.5px;left:2.5px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.4);transform:{{ remKnob }};transition:transform .3s cubic-bezier(.22,1,.36,1)"></span></span>
+</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 0;border-top:1px solid rgba(255,255,255,.06)">
+<span style="font-size:13.5px;color:#f1ecfd">Haptics</span>
+<span onClick="{{ toggleHap }}" style="display:block;width:42px;height:25px;border-radius:13px;background:{{ hapBg }};position:relative;cursor:pointer;transition:background .3s;flex:none"><span style="position:absolute;top:2.5px;left:2.5px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.4);transform:{{ hapKnob }};transition:transform .3s cubic-bezier(.22,1,.36,1)"></span></span>
+</div>
+</div>
+<div style="font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:rgba(216,206,238,.55);margin:20px 4px 8px">System</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:3px 16px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 0;cursor:pointer">
+<span style="font-size:13.5px;color:#f1ecfd">Appearance</span>
+<span style="display:flex;align-items:center;gap:7px"><span style="font-size:12.5px;color:rgba(216,206,238,.6)">Nebula Glass</span><svg width="13" height="13" viewBox="0 0 14 14" style="opacity:.4"><path d="M5 3 L10 7 L5 11" style="fill:none;stroke:#e9dcff;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"></path></svg></span>
+</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 0;border-top:1px solid rgba(255,255,255,.06);cursor:pointer">
+<span style="font-size:13.5px;color:#f1ecfd">Export data</span>
+<svg width="13" height="13" viewBox="0 0 14 14" style="opacity:.4"><path d="M5 3 L10 7 L5 11" style="fill:none;stroke:#e9dcff;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"></path></svg>
+</div>
+<div style="display:flex;align-items:center;padding:13px 0;border-top:1px solid rgba(255,255,255,.06);cursor:pointer">
+<span style="font-size:13.5px;font-weight:500;color:{{ cAcc }}">Sign out</span>
+</div>
+</div>
+<div style="text-align:center;font-family:'Space Grotesk',sans-serif;font-size:9.5px;letter-spacing:.16em;color:rgba(216,206,238,.35);margin-top:22px">ORBIT v0.9 &#183; DAY 12 IN ORBIT</div>
+</div>
+</div>
+</div>
+</div>
+</x-import>
+</div>
+
+<!-- ═══ SCREEN 1b · FUEL — diet tracking ═══
+     z2: header (FUEL wordmark + "Today" chip) → 224px hero spacer → macro legend chips
+     → "Remaining today" card (34px number + gradient bar) → 3 macro rings row → Mission Control
+     coach banner (secondary tint) → Food log: label + Meals/By-hour segmented toggle, then TWO
+     swipeable panels — MEALS: Breakfast 405 / Lunch 642 / Dinner (starts empty; quick-add chips) /
+     Meals and Snacks 342 · BY HOUR: hourly intake timeline → 4 log-method buttons.
+     3D hero: small planet + 3 tilted orbits carrying low-poly foods (drumstick+milk = Protein ·
+     apple = Carbs · cheese wedge = Fat), each scaled by its macro progress. -->
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Fuel — diet tracking</div>
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px" style="width:402px;height:874px;flex:none">
+<div data-screen-label="1b Fuel" style="position:relative;height:100%;overflow:hidden;background:radial-gradient(150% 70% at 80% -15%,rgba({{ rPriD2 }},.30),transparent 55%),radial-gradient(120% 55% at 0% 100%,rgba({{ rPriD2 }},.35),transparent 60%),#04050e;font-family:'DM Sans',sans-serif;color:#f4f0ff">
+<canvas id="bg-a-fuel" style="position:absolute;inset:0;width:100%;height:100%;z-index:0"></canvas>
+<div id="gl-a-fuel" style="position:absolute;top:0;left:0;right:0;height:440px;z-index:1;will-change:transform">
+<div style="position:absolute;top:84px;left:50%;transform:translateX(-50%);width:230px;height:230px;border-radius:50%;background:radial-gradient(circle,rgba({{ rPri }},.28),rgba({{ rSec }},.10) 55%,transparent 72%);filter:blur(8px)"></div>
+</div>
+<div class="pscroll" id="sc-a-fuel" style="position:absolute;inset:0;overflow-y:auto;z-index:2">
+<div style="padding:64px 16px 140px">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px">
+<div style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,{{ cPri }},{{ cSec }});box-shadow:0 0 9px rgba({{ rSec }},.8)"></span><span style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;letter-spacing:.24em">FUEL</span></div>
+<div style="font-size:11px;padding:5px 11px;border-radius:12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.11);color:rgba(216,206,238,.8)">Today</div>
+</div>
+<!-- hero spacer: Fuel 3D scene in #gl-a-fuel (z1) -->
+<div style="height:224px"></div>
+<!-- macro legend chips; dots match the 3D orbit-ring colors: Protein cSecL / Carbs cPri / Fat cAcc -->
+<div style="display:flex;justify-content:center;gap:8px;margin-bottom:16px">
+<div style="display:flex;align-items:center;gap:5px;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:rgba(216,206,238,.7);padding:4px 9px;border-radius:10px;background:rgba(23,15,44,.38);border:1px solid rgba(255,255,255,.08)"><span style="width:6px;height:6px;border-radius:50%;background:{{ cSecL }}"></span>Protein</div>
+<div style="display:flex;align-items:center;gap:5px;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:rgba(216,206,238,.7);padding:4px 9px;border-radius:10px;background:rgba(23,15,44,.38);border:1px solid rgba(255,255,255,.08)"><span style="width:6px;height:6px;border-radius:50%;background:{{ cPri }}"></span>Carbs</div>
+<div style="display:flex;align-items:center;gap:5px;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:rgba(216,206,238,.7);padding:4px 9px;border-radius:10px;background:rgba(23,15,44,.38);border:1px solid rgba(255,255,255,.08)"><span style="width:6px;height:6px;border-radius:50%;background:{{ cAcc }}"></span>Fat</div>
+</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:18px">
+<div style="font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:rgba(216,206,238,.55)">Remaining today</div>
+<div style="display:flex;align-items:baseline;gap:7px;margin-top:7px"><span style="font-family:'Space Grotesk',sans-serif;font-size:34px;font-weight:700;line-height:1">{{ fuelRemA }}</span><span style="font-size:12px;color:rgba(216,206,238,.62)">/ 2,350 kcal</span></div>
+<div style="margin-top:12px;height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden"><div style="height:100%;border-radius:4px;background:linear-gradient(90deg,{{ cPri }},{{ cSec }});width:{{ fuelBarWA }};transition:width .6s cubic-bezier(.22,1,.36,1)"></div></div>
+<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:rgba(216,206,238,.55)"><span>Eaten {{ eatenA }}</span><span>Coach adjusts Mon</span></div>
+</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);margin-top:12px;padding:16px 12px;display:flex">
+<!-- 58px macro rings, items {short,color,off,txt}; r=24 so C=150.8 -->
+<sc-for list="{{ ringsA }}" as="r" hint-placeholder-count="3">
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+<div style="position:relative;width:58px;height:58px">
+<svg width="58" height="58">
+<circle cx="29" cy="29" r="24" style="fill:none;stroke:rgba(255,255,255,.09);stroke-width:6"></circle>
+<circle cx="29" cy="29" r="24" transform="rotate(-90 29 29)" style="fill:none;stroke:{{ r.color }};stroke-width:6;stroke-linecap:round;stroke-dasharray:150.8;stroke-dashoffset:{{ r.off }}px;transition:stroke-dashoffset .7s cubic-bezier(.22,1,.36,1)"></circle>
+</svg>
+<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700">{{ r.short }}</div>
+</div>
+<div style="font-size:11px;color:rgba(216,206,238,.75)">{{ r.txt }}</div>
+</div>
+</sc-for>
+</div>
+<div style="margin-top:12px;padding:12px 14px;border-radius:16px;background:rgba({{ rSec }},.10);border:1px solid rgba({{ rSecL }},.26);font-size:12px;line-height:1.5;color:rgba(244,235,255,.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)"><span style="font-weight:600;color:{{ cAcc }}">Mission Control:</span> burn rate trending ↑ 2,847 kcal — carbs +15 g from Monday.</div>
+<!-- FOOD LOG header: section label + Meals/By-hour segmented toggle (mirrors the M/W control on Body) -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin:20px 4px 10px">
+<div style="font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:rgba(216,206,238,.55)">Food log</div>
+<div style="display:flex;gap:2px;padding:2px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)">
+<div onClick="{{ flMealsA }}" style="padding:4px 11px;border-radius:8px;font-size:10px;font-weight:600;cursor:pointer;background:{{ flTbMBgA }};color:{{ flTbMColA }};transition:all .2s">Meals</div>
+<div onClick="{{ flHoursA }}" style="padding:4px 11px;border-radius:8px;font-size:10px;font-weight:600;cursor:pointer;background:{{ flTbHBgA }};color:{{ flTbHColA }};transition:all .2s">By hour</div>
+</div>
+</div>
+<!-- swipeable food-log panels: horizontal scroll-snap — swipe OR tap the tabs; a scroll listener attached
+     in _scan() keeps flTab in sync while swiping. Panel 1 = Meals cards, panel 2 = By-hour timeline. -->
+<div class="pscroll" id="fl-a-swipe" style="display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain">
+<div style="flex:none;width:100%;scroll-snap-align:start">
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:6px 16px 4px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;padding:10px 0 6px"><span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px">Breakfast</span><span style="font-size:11.5px;color:rgba(216,206,238,.55)">405 kcal</span></div>
+<sc-for list="{{ bfast }}" as="f" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)">
+<div style="flex:1"><div style="font-size:13px;color:#f1ecfd">{{ f.name }}</div><div style="font-size:11px;color:rgba(216,206,238,.5);margin-top:1px">{{ f.portion }}</div></div>
+<span style="font-family:'Space Grotesk',sans-serif;font-size:12.5px;font-weight:600;color:rgba(244,240,255,.85)">{{ f.kcal }}</span>
+</div>
+</sc-for>
+</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);margin-top:10px;padding:6px 16px 4px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;padding:10px 0 6px"><span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px">Lunch</span><span style="font-size:11.5px;color:rgba(216,206,238,.55)">642 kcal</span></div>
+<sc-for list="{{ lunch }}" as="f" hint-placeholder-count="2">
+<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)">
+<div style="flex:1"><div style="font-size:13px;color:#f1ecfd">{{ f.name }}</div><div style="font-size:11px;color:rgba(216,206,238,.5);margin-top:1px">{{ f.portion }}</div></div>
+<span style="font-family:'Space Grotesk',sans-serif;font-size:12.5px;font-weight:600;color:rgba(244,240,255,.85)">{{ f.kcal }}</span>
+</div>
+</sc-for>
+</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);margin-top:10px;padding:6px 16px 14px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;padding:10px 0 6px"><span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px">Dinner</span><span style="font-size:11.5px;color:rgba(216,206,238,.55)">{{ dinKcalA }} kcal</span></div>
+<sc-for list="{{ dinnerA }}" as="f" hint-placeholder-count="0">
+<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)">
+<div style="flex:1"><div style="font-size:13px;color:#f1ecfd">{{ f.name }}</div><div style="font-size:11px;color:rgba(216,206,238,.5);margin-top:1px">{{ f.portion }}</div></div>
+<span style="font-family:'Space Grotesk',sans-serif;font-size:12.5px;font-weight:600;color:rgba(244,240,255,.85)">{{ f.kcal }}</span>
+</div>
+</sc-for>
+<!-- dinner empty state (dashed divider) + quick-add chips {label,bg,bd,col,onAdd}: add is idempotent;
+     chip flips to "✓ name" tinted state, budgets/rings update on ALL screens, matching 3D food pulses -->
+<sc-if value="{{ dinnerEmptyA }}" hint-placeholder-val="{{ true }}">
+<div style="padding:10px 0 2px;border-top:1px dashed rgba(255,255,255,.12);font-size:12px;color:rgba(216,206,238,.5)">Nothing logged — quick add:</div>
+</sc-if>
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+<sc-for list="{{ quickA }}" as="q" hint-placeholder-count="3">
+<div onClick="{{ q.onAdd }}" style="padding:8px 12px;border-radius:14px;font-size:12px;font-weight:500;cursor:pointer;background:{{ q.bg }};border:1px solid {{ q.bd }};color:{{ q.col }};transition:all .25s" style-active="transform:scale(.95)">{{ q.label }}</div>
+</sc-for>
+</div>
+</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);margin-top:10px;padding:6px 16px 4px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;padding:10px 0 6px"><span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px">Meals and Snacks</span><span style="font-size:11.5px;color:rgba(216,206,238,.55)">342 kcal</span></div>
+<sc-for list="{{ snacks }}" as="f" hint-placeholder-count="2">
+<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)">
+<div style="flex:1"><div style="font-size:13px;color:#f1ecfd">{{ f.name }}</div><div style="font-size:11px;color:rgba(216,206,238,.5);margin-top:1px">{{ f.portion }}</div></div>
+<span style="font-family:'Space Grotesk',sans-serif;font-size:12.5px;font-weight:600;color:rgba(244,240,255,.85)">{{ f.kcal }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+<!-- BY-HOUR panel: hourly intake timeline (rows = tlA {label,items,labCol,dotBg,dotSh,railBg,nowOn,minH,padB}).
+     Hours 6 AM to 9 PM down a left rail; the dot lights (secondary + glow) on hours with entries; entry chips
+     show name / time · meal / kcal; pulsing NOW marker in the 7 PM row; dinner quick-adds appear here live. -->
+<div style="flex:none;width:100%;scroll-snap-align:start">
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px 16px 8px">
+<sc-for list="{{ tlA }}" as="h" hint-placeholder-count="8">
+<div style="display:flex;gap:10px">
+<div style="width:40px;flex:none;text-align:right;font-family:'Space Grotesk',sans-serif;font-size:9.5px;font-weight:500;letter-spacing:.04em;color:{{ h.labCol }};padding-top:1px">{{ h.label }}</div>
+<div style="flex:none;display:flex;flex-direction:column;align-items:center;width:9px">
+<span style="width:7px;height:7px;border-radius:50%;background:{{ h.dotBg }};box-shadow:{{ h.dotSh }};flex:none;margin-top:2px;transition:background .3s"></span>
+<span style="flex:1;width:1px;background:{{ h.railBg }};margin-top:2px"></span>
+</div>
+<div style="flex:1;min-width:0;min-height:{{ h.minH }};padding-bottom:{{ h.padB }};margin-top:-3px">
+<sc-for list="{{ h.items }}" as="f" hint-placeholder-count="0">
+<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:6px;border-radius:12px;background:rgba(23,15,44,.38);border:1px solid rgba(255,255,255,.08)">
+<div style="flex:1;min-width:0"><div style="font-size:12px;color:#f1ecfd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.name }}</div><div style="font-size:9.5px;color:rgba(216,206,238,.5);margin-top:1px">{{ f.time }} · {{ f.meal }}</div></div>
+<span style="font-family:'Space Grotesk',sans-serif;font-size:11.5px;font-weight:600;color:rgba(244,240,255,.85);flex:none">{{ f.kcal }}</span>
+</div>
+</sc-for>
+<sc-if value="{{ h.nowOn }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;gap:6px;padding:2px 0 4px">
+<span style="width:7px;height:7px;border-radius:50%;background:{{ cSecL }};box-shadow:0 0 8px rgba({{ rSecL }},.9);animation:oPulse 2.4s ease-in-out infinite;flex:none"></span>
+<span style="font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(216,206,238,.6);flex:none">Now · 7:42 PM</span>
+<span style="flex:1;height:1px;background:linear-gradient(90deg,rgba({{ rSecL }},.45),transparent)"></span>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+<!-- log-method buttons: Scan / Photo / Search / Label — 46px glass circles with inline line icons -->
+<div style="display:flex;justify-content:space-between;margin-top:16px;padding:0 14px">
+<div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+<div style="width:46px;height:46px;border-radius:50%;background:rgba(23,15,44,.38);border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:rgba(255,255,255,.11)"><svg width="18" height="16"><rect x="1" y="2" width="2" height="12" style="fill:#e9dcff"></rect><rect x="5" y="2" width="1.4" height="12" style="fill:#e9dcff"></rect><rect x="8.4" y="2" width="2.6" height="12" style="fill:#e9dcff"></rect><rect x="13" y="2" width="1.4" height="12" style="fill:#e9dcff"></rect><rect x="16" y="2" width="1" height="12" style="fill:#e9dcff"></rect></svg></div>
+<span style="font-size:9.5px;letter-spacing:.06em;color:rgba(216,206,238,.55)">Scan</span>
+</div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+<div style="width:46px;height:46px;border-radius:50%;background:rgba(23,15,44,.38);border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:rgba(255,255,255,.11)"><svg width="20" height="17"><rect x="1" y="4" width="18" height="12" rx="3.5" style="fill:none;stroke:#e9dcff;stroke-width:1.5"></rect><circle cx="10" cy="10" r="3.2" style="fill:none;stroke:#e9dcff;stroke-width:1.5"></circle><rect x="7" y="1" width="6" height="3" rx="1.2" style="fill:#e9dcff"></rect></svg></div>
+<span style="font-size:9.5px;letter-spacing:.06em;color:rgba(216,206,238,.55)">Photo</span>
+</div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+<div style="width:46px;height:46px;border-radius:50%;background:rgba(23,15,44,.38);border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:rgba(255,255,255,.11)"><svg width="18" height="18"><circle cx="8" cy="8" r="5.2" style="fill:none;stroke:#e9dcff;stroke-width:1.6"></circle><path d="M12 12 L16.5 16.5" style="stroke:#e9dcff;stroke-width:1.6;stroke-linecap:round"></path></svg></div>
+<span style="font-size:9.5px;letter-spacing:.06em;color:rgba(216,206,238,.55)">Search</span>
+</div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+<div style="width:46px;height:46px;border-radius:50%;background:rgba(23,15,44,.38);border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:rgba(255,255,255,.11)"><svg width="16" height="18"><rect x="1" y="1" width="14" height="16" rx="2" style="fill:none;stroke:#e9dcff;stroke-width:1.5"></rect><rect x="3.5" y="3.5" width="9" height="2.6" rx="0.8" style="fill:#e9dcff"></rect><path d="M3.5 9 L12.5 9" style="stroke:#e9dcff;stroke-width:1.3;stroke-linecap:round"></path><path d="M3.5 11.6 L12.5 11.6" style="stroke:#e9dcff;stroke-width:1.3;stroke-linecap:round"></path><path d="M3.5 14.2 L9.5 14.2" style="stroke:#e9dcff;stroke-width:1.3;stroke-linecap:round"></path></svg></div>
+<span style="font-size:9.5px;letter-spacing:.06em;color:rgba(216,206,238,.55)">Label</span>
+</div>
+</div>
+</div>
+</div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:112px;z-index:3;pointer-events:none;background:linear-gradient(0deg,#04050e 25%,transparent)"></div>
+<div style="position:absolute;left:14px;right:14px;bottom:16px;z-index:4;display:flex;gap:4px;padding:6px;border-radius:26px;background:rgba(22,13,42,.78);border:1px solid rgba(255,255,255,.09);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)">
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;cursor:pointer"><svg width="20" height="20"><circle cx="10" cy="10" r="4.6" style="fill:rgba(216,206,238,.42)"></circle><ellipse cx="10" cy="10" rx="8.6" ry="3" transform="rotate(-18 10 10)" style="fill:none;stroke:rgba(216,206,238,.42);stroke-width:1.3;opacity:.75"></ellipse></svg><span style="font-size:9.5px;color:rgba(216,206,238,.42)">Home</span></div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;background:rgba(255,255,255,.09);cursor:pointer"><svg width="20" height="20"><circle cx="10" cy="10" r="2.6" style="fill:#f3e8ff"></circle><circle cx="10" cy="10" r="7.6" style="fill:none;stroke:#f3e8ff;stroke-width:1.2;opacity:.65"></circle><circle cx="16.4" cy="6" r="1.9" style="fill:#f3e8ff"></circle></svg><span style="font-size:9.5px;font-weight:600;color:#f3e8ff">Fuel</span></div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;cursor:pointer"><svg width="20" height="20"><path d="M10 2.6 L17.4 10 L10 17.4 L2.6 10 Z" style="fill:none;stroke:rgba(216,206,238,.42);stroke-width:1.6;stroke-linejoin:round"></path><circle cx="10" cy="10" r="1.7" style="fill:rgba(216,206,238,.42)"></circle></svg><span style="font-size:9.5px;color:rgba(216,206,238,.42)">Train</span></div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;cursor:pointer"><svg width="20" height="20"><circle cx="10" cy="5.5" r="3.2" style="fill:rgba(216,206,238,.42)"></circle><rect x="5.5" y="10" width="9" height="8" rx="4" style="fill:rgba(216,206,238,.42)"></rect></svg><span style="font-size:9.5px;color:rgba(216,206,238,.42)">Body</span></div>
+</div>
+</div>
+</x-import>
+</div>
+<!-- ═══ SCREEN 1c · TRAIN — workout logging ═══
+     z2: header (TRAIN + "Wk 8 · Block 2" chip) → 214px hero spacer → Strength score card
+     (40px score + delta chip + "Intermediate II" + 68% bar to Advanced + "Top 22% @ 183 lb")
+     → Push Day session card: done/16 counter, REST countdown chip, 5px progress bar, 5 exercises
+     each with name/tag/scheme + tappable set circles → static week strip (7 dots · 4 sessions).
+     3D hero: displaced asteroid whose emissive heat rises with completed sets; 2 debris rocks + astronaut. -->
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Train — workout logging</div>
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px" style="width:402px;height:874px;flex:none">
+<div data-screen-label="1c Train" style="position:relative;height:100%;overflow:hidden;background:radial-gradient(150% 70% at 80% -15%,rgba({{ rPriD2 }},.30),transparent 55%),radial-gradient(120% 55% at 0% 100%,rgba({{ rPriD2 }},.35),transparent 60%),#04050e;font-family:'DM Sans',sans-serif;color:#f4f0ff">
+<canvas id="bg-a-train" style="position:absolute;inset:0;width:100%;height:100%;z-index:0"></canvas>
+<div id="gl-a-train" style="position:absolute;top:0;left:0;right:0;height:440px;z-index:1;will-change:transform">
+<div style="position:absolute;top:84px;left:50%;transform:translateX(-50%);width:230px;height:230px;border-radius:50%;background:radial-gradient(circle,rgba({{ rPri }},.28),rgba({{ rSec }},.10) 55%,transparent 72%);filter:blur(8px)"></div>
+</div>
+<div class="pscroll" id="sc-a-train" style="position:absolute;inset:0;overflow-y:auto;z-index:2">
+<div style="padding:64px 16px 140px">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px">
+<div style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,{{ cPri }},{{ cSec }});box-shadow:0 0 9px rgba({{ rSec }},.8)"></span><span style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;letter-spacing:.24em">TRAIN</span></div>
+<div style="font-size:11px;padding:5px 11px;border-radius:12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.11);color:rgba(216,206,238,.8)">Wk 8 · Block 2</div>
+</div>
+<!-- hero spacer: Train 3D scene in #gl-a-train (z1) -->
+<div style="height:214px"></div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:18px">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<div style="font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:rgba(216,206,238,.55)">Strength score</div>
+<div style="font-size:10.5px;padding:4px 9px;border-radius:10px;background:rgba({{ rSec }},.14);border:1px solid rgba({{ rSecL }},.3);color:#f5d0fe">{{ scoreDeltaA }}</div>
+</div>
+<div style="display:flex;align-items:baseline;gap:9px;margin-top:6px"><span style="font-family:'Space Grotesk',sans-serif;font-size:40px;font-weight:700;line-height:1">{{ scoreA }}</span><span style="font-size:12px;color:rgba(216,206,238,.62)">Intermediate II</span></div>
+<div style="margin-top:12px;height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden"><div style="height:100%;border-radius:4px;background:linear-gradient(90deg,{{ cPri }},{{ cSec }});width:68%"></div></div>
+<div style="display:flex;justify-content:space-between;margin-top:7px;font-size:11px;color:rgba(216,206,238,.55)"><span>68% to Advanced</span><span>Top 22% @ 183 lb</span></div>
+</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);margin-top:12px;padding:18px 18px 8px">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<div><div style="font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:600">Push Day</div><div style="font-size:11.5px;color:rgba(216,206,238,.62);margin-top:2px">{{ trainDoneA }} sets · tap to log</div></div>
+<!-- REST chip: visible while rest > 0; checking any set (re)starts the 120s countdown -->
+<sc-if value="{{ restOnA }}" hint-placeholder-val="{{ false }}">
+<div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:12px;padding:6px 11px;border-radius:12px;background:rgba({{ rPri }},.18);border:1px solid rgba({{ rPriL }},.45);color:#ddd0ff">REST {{ restTxtA }}</div>
+</sc-if>
+</div>
+<div style="margin-top:12px;height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden"><div style="height:100%;background:linear-gradient(90deg,{{ cPri }},{{ cSec }});width:{{ trainPctA }};transition:width .5s cubic-bezier(.22,1,.36,1)"></div></div>
+<sc-for list="{{ exA }}" as="ex" hint-placeholder-count="5">
+<div style="padding:14px 0 12px;border-bottom:1px solid rgba(255,255,255,.06)">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:14px;font-weight:600;color:#f4f0ff">{{ ex.name }}</span><span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(216,206,238,.45)">{{ ex.tag }}</span></div>
+<div style="font-size:12px;color:rgba(216,206,238,.55);margin-top:2px">{{ ex.scheme }}</div>
+<div style="display:flex;gap:8px;margin-top:10px">
+<!-- tappable 36px set circles {n,bg,bd,col,sh,onToggle}: done = 135deg gradient fill + secondary glow -->
+<sc-for list="{{ ex.sets }}" as="st" hint-placeholder-count="4">
+<div onClick="{{ st.onToggle }}" style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;cursor:pointer;background:{{ st.bg }};border:1px solid {{ st.bd }};color:{{ st.col }};box-shadow:{{ st.sh }};transition:all .25s" style-active="transform:scale(.9)">{{ st.n }}</div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+<!-- static week strip: 7 dots, filled (cSec) = trained day -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin:14px 6px 0">
+<span style="font-size:11px;color:rgba(216,206,238,.55)">This week</span>
+<div style="display:flex;gap:7px">
+<span style="width:9px;height:9px;border-radius:50%;background:{{ cSec }}"></span>
+<span style="width:9px;height:9px;border-radius:50%;background:{{ cSec }}"></span>
+<span style="width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.14)"></span>
+<span style="width:9px;height:9px;border-radius:50%;background:{{ cSec }}"></span>
+<span style="width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.14)"></span>
+<span style="width:9px;height:9px;border-radius:50%;background:{{ cSec }}"></span>
+<span style="width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.14)"></span>
+</div>
+<span style="font-size:11px;color:rgba(216,206,238,.55)">4 sessions</span>
+</div>
+</div>
+</div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:112px;z-index:3;pointer-events:none;background:linear-gradient(0deg,#04050e 25%,transparent)"></div>
+<div style="position:absolute;left:14px;right:14px;bottom:16px;z-index:4;display:flex;gap:4px;padding:6px;border-radius:26px;background:rgba(22,13,42,.78);border:1px solid rgba(255,255,255,.09);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)">
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;cursor:pointer"><svg width="20" height="20"><circle cx="10" cy="10" r="4.6" style="fill:rgba(216,206,238,.42)"></circle><ellipse cx="10" cy="10" rx="8.6" ry="3" transform="rotate(-18 10 10)" style="fill:none;stroke:rgba(216,206,238,.42);stroke-width:1.3;opacity:.75"></ellipse></svg><span style="font-size:9.5px;color:rgba(216,206,238,.42)">Home</span></div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;cursor:pointer"><svg width="20" height="20"><circle cx="10" cy="10" r="2.6" style="fill:rgba(216,206,238,.42)"></circle><circle cx="10" cy="10" r="7.6" style="fill:none;stroke:rgba(216,206,238,.42);stroke-width:1.2;opacity:.65"></circle><circle cx="16.4" cy="6" r="1.9" style="fill:rgba(216,206,238,.42)"></circle></svg><span style="font-size:9.5px;color:rgba(216,206,238,.42)">Fuel</span></div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;background:rgba(255,255,255,.09);cursor:pointer"><svg width="20" height="20"><path d="M10 2.6 L17.4 10 L10 17.4 L2.6 10 Z" style="fill:none;stroke:#f3e8ff;stroke-width:1.6;stroke-linejoin:round"></path><circle cx="10" cy="10" r="1.7" style="fill:#f3e8ff"></circle></svg><span style="font-size:9.5px;font-weight:600;color:#f3e8ff">Train</span></div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;cursor:pointer"><svg width="20" height="20"><circle cx="10" cy="5.5" r="3.2" style="fill:rgba(216,206,238,.42)"></circle><rect x="5.5" y="10" width="9" height="8" rx="4" style="fill:rgba(216,206,238,.42)"></rect></svg><span style="font-size:9.5px;color:rgba(216,206,238,.42)">Body</span></div>
+</div>
+</div>
+</x-import>
+</div>
+
+<!-- ═══ SCREEN 1d · BODY — results, geometric muscle map (NO 3D hero; starfield only) ═══
+     z2: header (BODY + "Results" chip) → "Body map" title + score subtitle → Muscle levels card:
+     M/W toggle, FRONT figure + caption, BACK figure + caption, 6-stop level legend
+     → "By muscle group" card (13 rows) → Tip banner.
+     Figure fills read the mX holes; trained-today muscles get the fx* glow filters. Geometry is also
+     extracted to design_handoff_orbit_swiftui/figure-paths.md — treat all path data as exact design data. -->
+<div class="dv-opt" id="1d">
+<div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Body — results · geometric muscle map</div>
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px" style="width:402px;height:874px;flex:none">
+<div data-screen-label="1d Body" style="position:relative;height:100%;overflow:hidden;background:radial-gradient(150% 70% at 80% -15%,rgba({{ rPriD2 }},.30),transparent 55%),radial-gradient(120% 55% at 0% 100%,rgba({{ rPriD2 }},.35),transparent 60%),#04050e;font-family:'DM Sans',sans-serif;color:#f4f0ff">
+<canvas id="bg-a-body" style="position:absolute;inset:0;width:100%;height:100%;z-index:0"></canvas>
+<div class="pscroll" id="sc-a-body" style="position:absolute;inset:0;overflow-y:auto;z-index:2">
+<div style="padding:64px 16px 140px">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px">
+<div style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,{{ cPri }},{{ cSec }});box-shadow:0 0 9px rgba({{ rSec }},.8)"></span><span style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;letter-spacing:.24em">BODY</span></div>
+<div style="font-size:11px;padding:5px 11px;border-radius:12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.11);color:rgba(216,206,238,.8)">Results</div>
+</div>
+<div style="margin:22px 4px 16px">
+<div style="font-family:'Space Grotesk',sans-serif;font-size:25px;font-weight:600;letter-spacing:-.01em">Body map</div>
+<div style="font-size:12.5px;color:rgba(216,206,238,.62);margin-top:5px">Levels from your logged lifts · Score {{ scoreA }}</div>
+</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px 18px 18px">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<div style="font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:rgba(216,206,238,.55)">Muscle levels</div>
+<div style="display:flex;gap:2px;padding:2px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)">
+<!-- M/W segmented toggle: swaps the male/female figure SVGs (front + back) -->
+<div onClick="{{ setMaleA }}" style="padding:4px 12px;border-radius:8px;font-size:10.5px;font-weight:600;cursor:pointer;background:{{ mtBgA }};color:{{ mtColA }};transition:all .2s">M</div>
+<div onClick="{{ setFemaleA }}" style="padding:4px 12px;border-radius:8px;font-size:10.5px;font-weight:600;cursor:pointer;background:{{ ftBgA }};color:{{ ftColA }};transition:all .2s">W</div>
+</div>
+</div>
+<div style="position:relative;display:flex;justify-content:center;padding:14px 0 6px">
+<div style="position:absolute;top:30px;left:50%;transform:translateX(-50%);width:210px;height:210px;border-radius:50%;background:radial-gradient(circle,rgba({{ rPri }},.22),rgba({{ rSec }},.08) 55%,transparent 72%);filter:blur(6px)"></div>
+<!-- FRONT figures, 220x290 grid, gentle float; M then W variant behind sc-ifs. Muscle paths fill from
+     {{ mX }} holes; neutral parts (head/neck/hands/pelvis/knees/feet) fixed rgba(244,240,255,.13);
+     outline rgba(12,6,26,.4) 1px; shadow ellipse under feet. Copy path data exactly. -->
+<div style="position:relative;animation:oFloat 5.5s ease-in-out infinite">
+<sc-if value="{{ isMaleA }}" hint-placeholder-val="{{ true }}">
+<svg width="220" height="290">
+<ellipse cx="110" cy="282" rx="36" ry="4.5" style="fill:rgba({{ rPri }},.16)"></ellipse>
+<circle cx="110" cy="25" r="13.5" style="fill:rgba(244,240,255,.13)"></circle>
+<path d="M104,37 Q110,40 116,37 L116,47 Q110,50 104,47 Z" style="fill:rgba(244,240,255,.13)"></path>
+<path d="M103,47 Q88,50 79,58 L103,60 Z" style="fill:{{ mTraps }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M117,47 Q132,50 141,58 L117,60 Z" style="fill:{{ mTraps }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M63,58 Q72,50 83,55 Q87,64 83,73 Q71,76 64,69 Q61,63 63,58 Z" style="fill:{{ mDelts }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxDeltsA }};transition:fill .4s"></path>
+<path d="M157,58 Q148,50 137,55 Q133,64 137,73 Q149,76 156,69 Q159,63 157,58 Z" style="fill:{{ mDelts }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxDeltsA }};transition:fill .4s"></path>
+<path d="M86,58 Q97,53 108,57 L108,79 Q96,86 87,79 Q82,68 86,58 Z" style="fill:{{ mChest }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxChestA }};transition:fill .4s"></path>
+<path d="M134,58 Q123,53 112,57 L112,79 Q124,86 133,79 Q138,68 134,58 Z" style="fill:{{ mChest }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxChestA }};transition:fill .4s"></path>
+<path d="M62,80 Q70,76 75,82 Q77,92 74,104 Q70,111 65,108 Q59,96 62,80 Z" style="fill:{{ mBiceps }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M158,80 Q150,76 145,82 Q143,92 146,104 Q150,111 155,108 Q161,96 158,80 Z" style="fill:{{ mBiceps }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M52,114 Q58,110 63,115 Q66,126 62,140 Q59,148 54,146 Q49,132 52,114 Z" style="fill:{{ mFore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M168,114 Q162,110 157,115 Q154,126 158,140 Q161,148 166,146 Q171,132 168,114 Z" style="fill:{{ mFore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<circle cx="50" cy="152" r="4.8" style="fill:rgba(244,240,255,.13)"></circle>
+<circle cx="170" cy="152" r="4.8" style="fill:rgba(244,240,255,.13)"></circle>
+<path d="M88,88 Q93,86 96,90 L96,120 Q93,126 89,122 Q86,105 88,88 Z" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M132,88 Q127,86 124,90 L124,120 Q127,126 131,122 Q134,105 132,88 Z" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<rect x="99" y="86" width="10" height="11" rx="4" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<rect x="111" y="86" width="10" height="11" rx="4" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<rect x="99" y="99" width="10" height="11" rx="4" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<rect x="111" y="99" width="10" height="11" rx="4" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<rect x="99" y="112" width="10" height="11" rx="4" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<rect x="111" y="112" width="10" height="11" rx="4" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<rect x="99" y="125" width="22" height="9" rx="4.5" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<path d="M96,138 L124,138 Q122,153 110,160 Q98,153 96,138 Z" style="fill:rgba(244,240,255,.13)"></path>
+<path d="M90,160 Q98,155 106,161 Q109,182 105,204 Q101,212 95,209 Q88,186 90,160 Z" style="fill:{{ mQuads }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M130,160 Q122,155 114,161 Q111,182 115,204 Q119,212 125,209 Q132,186 130,160 Z" style="fill:{{ mQuads }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<circle cx="99" cy="213" r="4.2" style="fill:rgba(244,240,255,.13)"></circle>
+<circle cx="121" cy="213" r="4.2" style="fill:rgba(244,240,255,.13)"></circle>
+<path d="M92,222 Q99,216 105,223 Q107,238 102,256 Q98,262 95,258 Q90,240 92,222 Z" style="fill:{{ mCalves }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M128,222 Q121,216 115,223 Q113,238 118,256 Q122,262 125,258 Q130,240 128,222 Z" style="fill:{{ mCalves }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<rect x="87" y="266" width="18" height="8" rx="4" style="fill:rgba(244,240,255,.13)"></rect>
+<rect x="115" y="266" width="18" height="8" rx="4" style="fill:rgba(244,240,255,.13)"></rect>
+</svg>
+</sc-if>
+<sc-if value="{{ isFemaleA }}" hint-placeholder-val="{{ false }}">
+<svg width="220" height="290">
+<ellipse cx="110" cy="276" rx="32" ry="4" style="fill:rgba({{ rPri }},.16)"></ellipse>
+<circle cx="110" cy="9.5" r="4.2" style="fill:rgba(244,240,255,.13)"></circle>
+<circle cx="110" cy="24" r="12.5" style="fill:rgba(244,240,255,.13)"></circle>
+<path d="M105,35.5 Q110,38 115,35.5 L115,45 Q110,47.5 105,45 Z" style="fill:rgba(244,240,255,.13)"></path>
+<path d="M104,45.5 Q92,48 84,54 L104,56 Z" style="fill:{{ mTraps }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M116,45.5 Q128,48 136,54 L116,56 Z" style="fill:{{ mTraps }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M70,55 Q78,49 87,53 Q90,60 87,68 Q77,71 71,65 Q68,60 70,55 Z" style="fill:{{ mDelts }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxDeltsA }};transition:fill .4s"></path>
+<path d="M150,55 Q142,49 133,53 Q130,60 133,68 Q143,71 149,65 Q152,60 150,55 Z" style="fill:{{ mDelts }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxDeltsA }};transition:fill .4s"></path>
+<ellipse cx="97" cy="71.5" rx="11" ry="10.5" transform="rotate(-8 97 71.5)" style="fill:{{ mChest }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxChestA }};transition:fill .4s"></ellipse>
+<ellipse cx="123" cy="71.5" rx="11" ry="10.5" transform="rotate(8 123 71.5)" style="fill:{{ mChest }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxChestA }};transition:fill .4s"></ellipse>
+<path d="M68,76 Q75,72 79,78 Q81,87 78,98 Q74,104 70,101 Q65,89 68,76 Z" style="fill:{{ mBiceps }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M152,76 Q145,72 141,78 Q139,87 142,98 Q146,104 150,101 Q155,89 152,76 Z" style="fill:{{ mBiceps }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M59,107 Q64,103 68,108 Q70,118 67,131 Q64,138 60,136 Q56,122 59,107 Z" style="fill:{{ mFore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M161,107 Q156,103 152,108 Q150,118 153,131 Q156,138 160,136 Q164,122 161,107 Z" style="fill:{{ mFore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<circle cx="57" cy="143" r="4.4" style="fill:rgba(244,240,255,.13)"></circle>
+<circle cx="163" cy="143" r="4.4" style="fill:rgba(244,240,255,.13)"></circle>
+<path d="M90,85 Q94,83 97,87 L97,114 Q94,119 91,116 Q88,100 90,85 Z" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M130,85 Q126,83 123,87 L123,114 Q126,119 129,116 Q132,100 130,85 Z" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<rect x="100" y="83" width="9.5" height="10" rx="4" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<rect x="110.5" y="83" width="9.5" height="10" rx="4" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<rect x="100" y="95" width="9.5" height="10" rx="4" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<rect x="110.5" y="95" width="9.5" height="10" rx="4" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<rect x="100" y="107" width="9.5" height="10" rx="4" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<rect x="110.5" y="107" width="9.5" height="10" rx="4" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<rect x="100" y="119" width="20" height="8.5" rx="4" style="fill:{{ mCore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<path d="M93,131 L127,131 Q129,150 110,161 Q91,150 93,131 Z" style="fill:rgba(244,240,255,.13)"></path>
+<path d="M89,158 Q97,152 106,159 Q109,178 105,199 Q101,207 95,204 Q87,182 89,158 Z" style="fill:{{ mQuads }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M131,158 Q123,152 114,159 Q111,178 115,199 Q119,207 125,204 Q133,182 131,158 Z" style="fill:{{ mQuads }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<circle cx="99" cy="208" r="4" style="fill:rgba(244,240,255,.13)"></circle>
+<circle cx="121" cy="208" r="4" style="fill:rgba(244,240,255,.13)"></circle>
+<path d="M92,217 Q98,211 104,218 Q106,232 101,249 Q97,255 94,251 Q89,234 92,217 Z" style="fill:{{ mCalves }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M128,217 Q122,211 116,218 Q114,232 119,249 Q123,255 126,251 Q131,234 128,217 Z" style="fill:{{ mCalves }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<rect x="88" y="259" width="17" height="8" rx="4" style="fill:rgba(244,240,255,.13)"></rect>
+<rect x="115" y="259" width="17" height="8" rx="4" style="fill:rgba(244,240,255,.13)"></rect>
+</svg>
+</sc-if>
+</div>
+</div>
+<div style="text-align:center;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(216,206,238,.5);margin:4px 0 8px">Front</div>
+<div style="position:relative;display:flex;justify-content:center;padding:8px 0 6px">
+<div style="position:absolute;top:26px;left:50%;transform:translateX(-50%);width:210px;height:210px;border-radius:50%;background:radial-gradient(circle,rgba({{ rPri }},.18),rgba({{ rSec }},.07) 55%,transparent 72%);filter:blur(6px)"></div>
+<!-- BACK figures (M + W): traps diamond, lats, triceps, lower-back columns, glutes, hamstrings, calves -->
+<div style="position:relative;animation:oFloat 6s ease-in-out infinite">
+<sc-if value="{{ isMaleA }}" hint-placeholder-val="{{ true }}">
+<svg width="220" height="290">
+<ellipse cx="110" cy="282" rx="36" ry="4.5" style="fill:rgba({{ rPri }},.16)"></ellipse>
+<circle cx="110" cy="25" r="13.5" style="fill:rgba(244,240,255,.13)"></circle>
+<path d="M104,37 Q110,40 116,37 L116,45 Q110,48 104,45 Z" style="fill:rgba(244,240,255,.13)"></path>
+<path d="M110,44 Q96,48 84,56 Q98,60 104,64 L110,86 L116,64 Q122,60 136,56 Q124,48 110,44 Z" style="fill:{{ mTraps }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M63,58 Q72,50 83,55 Q87,64 83,73 Q71,76 64,69 Q61,63 63,58 Z" style="fill:{{ mDelts }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxDeltsA }};transition:fill .4s"></path>
+<path d="M157,58 Q148,50 137,55 Q133,64 137,73 Q149,76 156,69 Q159,63 157,58 Z" style="fill:{{ mDelts }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxDeltsA }};transition:fill .4s"></path>
+<path d="M84,68 Q95,64 103,70 L103,92 Q99,116 92,124 Q84,100 84,68 Z" style="fill:{{ mLats }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M136,68 Q125,64 117,70 L117,92 Q121,116 128,124 Q136,100 136,68 Z" style="fill:{{ mLats }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M62,80 Q70,76 75,82 Q77,92 74,104 Q70,111 65,108 Q59,96 62,80 Z" style="fill:{{ mTri }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxTriA }};transition:fill .4s"></path>
+<path d="M158,80 Q150,76 145,82 Q143,92 146,104 Q150,111 155,108 Q161,96 158,80 Z" style="fill:{{ mTri }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxTriA }};transition:fill .4s"></path>
+<path d="M52,114 Q58,110 63,115 Q66,126 62,140 Q59,148 54,146 Q49,132 52,114 Z" style="fill:{{ mFore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M168,114 Q162,110 157,115 Q154,126 158,140 Q161,148 166,146 Q171,132 168,114 Z" style="fill:{{ mFore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<circle cx="50" cy="152" r="4.8" style="fill:rgba(244,240,255,.13)"></circle>
+<circle cx="170" cy="152" r="4.8" style="fill:rgba(244,240,255,.13)"></circle>
+<rect x="102" y="96" width="7" height="34" rx="3.5" style="fill:{{ mLow }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<rect x="111" y="96" width="7" height="34" rx="3.5" style="fill:{{ mLow }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<path d="M95,136 Q107,133 108,147 Q108,160 98,162 Q90,155 91,145 Q92,138 95,136 Z" style="fill:{{ mGlutes }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M125,136 Q113,133 112,147 Q112,160 122,162 Q130,155 129,145 Q128,138 125,136 Z" style="fill:{{ mGlutes }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M90,166 Q98,161 106,167 Q109,186 105,206 Q101,214 95,211 Q88,190 90,166 Z" style="fill:{{ mHams }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M130,166 Q122,161 114,167 Q111,186 115,206 Q119,214 125,211 Q132,190 130,166 Z" style="fill:{{ mHams }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<circle cx="99" cy="215" r="4.2" style="fill:rgba(244,240,255,.13)"></circle>
+<circle cx="121" cy="215" r="4.2" style="fill:rgba(244,240,255,.13)"></circle>
+<path d="M92,222 Q99,216 105,223 Q107,238 102,256 Q98,262 95,258 Q90,240 92,222 Z" style="fill:{{ mCalves }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M128,222 Q121,216 115,223 Q113,238 118,256 Q122,262 125,258 Q130,240 128,222 Z" style="fill:{{ mCalves }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<rect x="87" y="266" width="18" height="8" rx="4" style="fill:rgba(244,240,255,.13)"></rect>
+<rect x="115" y="266" width="18" height="8" rx="4" style="fill:rgba(244,240,255,.13)"></rect>
+</svg>
+</sc-if>
+<sc-if value="{{ isFemaleA }}" hint-placeholder-val="{{ false }}">
+<svg width="220" height="290">
+<ellipse cx="110" cy="276" rx="32" ry="4" style="fill:rgba({{ rPri }},.16)"></ellipse>
+<circle cx="110" cy="9.5" r="4.2" style="fill:rgba(244,240,255,.13)"></circle>
+<circle cx="110" cy="24" r="12.5" style="fill:rgba(244,240,255,.13)"></circle>
+<path d="M105,35.5 Q110,38 115,35.5 L115,43 Q110,45.5 105,43 Z" style="fill:rgba(244,240,255,.13)"></path>
+<path d="M110,42 Q99,46 88,52 Q100,56 105,60 L110,78 L115,60 Q120,56 132,52 Q121,46 110,42 Z" style="fill:{{ mTraps }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M70,55 Q78,49 87,53 Q90,60 87,68 Q77,71 71,65 Q68,60 70,55 Z" style="fill:{{ mDelts }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxDeltsA }};transition:fill .4s"></path>
+<path d="M150,55 Q142,49 133,53 Q130,60 133,68 Q143,71 149,65 Q152,60 150,55 Z" style="fill:{{ mDelts }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxDeltsA }};transition:fill .4s"></path>
+<path d="M88,64 Q97,61 104,66 L104,86 Q100,108 94,116 Q87,94 88,64 Z" style="fill:{{ mLats }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M132,64 Q123,61 116,66 L116,86 Q120,108 126,116 Q133,94 132,64 Z" style="fill:{{ mLats }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M68,76 Q75,72 79,78 Q81,87 78,98 Q74,104 70,101 Q65,89 68,76 Z" style="fill:{{ mTri }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxTriA }};transition:fill .4s"></path>
+<path d="M152,76 Q145,72 141,78 Q139,87 142,98 Q146,104 150,101 Q155,89 152,76 Z" style="fill:{{ mTri }};stroke:rgba(12,6,26,.4);stroke-width:1;filter:{{ fxTriA }};transition:fill .4s"></path>
+<path d="M59,107 Q64,103 68,108 Q70,118 67,131 Q64,138 60,136 Q56,122 59,107 Z" style="fill:{{ mFore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M161,107 Q156,103 152,108 Q150,118 153,131 Q156,138 160,136 Q164,122 161,107 Z" style="fill:{{ mFore }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<circle cx="57" cy="143" r="4.4" style="fill:rgba(244,240,255,.13)"></circle>
+<circle cx="163" cy="143" r="4.4" style="fill:rgba(244,240,255,.13)"></circle>
+<rect x="103" y="94" width="6.5" height="30" rx="3" style="fill:{{ mLow }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<rect x="110.5" y="94" width="6.5" height="30" rx="3" style="fill:{{ mLow }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></rect>
+<path d="M93,128 Q107,125 108,139 Q108,153 97,156 Q88,149 89,138 Q90,131 93,128 Z" style="fill:{{ mGlutes }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M127,128 Q113,125 112,139 Q112,153 123,156 Q132,149 131,138 Q130,131 127,128 Z" style="fill:{{ mGlutes }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M89,160 Q97,154 106,161 Q109,178 105,198 Q101,206 95,203 Q87,182 89,160 Z" style="fill:{{ mHams }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M131,160 Q123,154 114,161 Q111,178 115,198 Q119,206 125,203 Q133,182 131,160 Z" style="fill:{{ mHams }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<circle cx="99" cy="206" r="4" style="fill:rgba(244,240,255,.13)"></circle>
+<circle cx="121" cy="206" r="4" style="fill:rgba(244,240,255,.13)"></circle>
+<path d="M92,217 Q98,211 104,218 Q106,232 101,249 Q97,255 94,251 Q89,234 92,217 Z" style="fill:{{ mCalves }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<path d="M128,217 Q122,211 116,218 Q114,232 119,249 Q123,255 126,251 Q131,234 128,217 Z" style="fill:{{ mCalves }};stroke:rgba(12,6,26,.4);stroke-width:1;transition:fill .4s"></path>
+<rect x="88" y="259" width="17" height="8" rx="4" style="fill:rgba(244,240,255,.13)"></rect>
+<rect x="115" y="259" width="17" height="8" rx="4" style="fill:rgba(244,240,255,.13)"></rect>
+</svg>
+</sc-if>
+</div>
+</div>
+<div style="text-align:center;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(216,206,238,.5);margin:4px 0 12px">Back</div>
+<div style="margin-top:10px">
+<!-- level legend: gradScale = 90deg gradient through the 6 _scale6() stops -->
+<div style="height:6px;border-radius:3px;background:{{ gradScale }}"></div>
+<div style="display:flex;justify-content:space-between;margin-top:5px;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:rgba(216,206,238,.45)"><span>Beginner</span><span>World class</span></div>
+</div>
+</div>
+<div style="background:rgba(23,15,44,.32);border:1px solid rgba(255,255,255,.10);border-radius:22px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);margin-top:12px;padding:16px 18px">
+<div style="font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:rgba(216,206,238,.55)">By muscle group</div>
+<div style="display:flex;flex-direction:column;gap:11px;margin-top:13px">
+<!-- muscle rows {name,label,color,glow,today,segs[6]}: level dot · name · 6-segment bar · level label + optional "▲ today" -->
+<sc-for list="{{ mListA }}" as="m" hint-placeholder-count="8">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="width:8px;height:8px;border-radius:50%;background:{{ m.color }};box-shadow:0 0 6px {{ m.glow }};flex:none"></span>
+<span style="width:74px;font-size:12px;color:rgba(244,240,255,.85)">{{ m.name }}</span>
+<div style="flex:1;display:flex;gap:3px">
+<sc-for list="{{ m.segs }}" as="s" hint-placeholder-count="6">
+<span style="flex:1;height:5px;border-radius:3px;background:{{ s.bg }}"></span>
+</sc-for>
+</div>
+<div style="width:88px;text-align:right"><span style="font-size:10.5px;color:rgba(216,206,238,.6)">{{ m.label }}</span><span style="display:block;font-size:8.5px;letter-spacing:.06em;color:{{ cAcc }}">{{ m.today }}</span></div>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="margin-top:12px;padding:12px 14px;border-radius:16px;background:rgba({{ rSec }},.10);border:1px solid rgba({{ rSecL }},.26);font-size:12px;line-height:1.5;color:rgba(244,235,255,.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)"><span style="font-weight:600;color:{{ cAcc }}">Tip:</span> log sets on Train and trained muscles glow here.</div>
+</div>
+</div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:112px;z-index:3;pointer-events:none;background:linear-gradient(0deg,#04050e 25%,transparent)"></div>
+<div style="position:absolute;left:14px;right:14px;bottom:16px;z-index:4;display:flex;gap:4px;padding:6px;border-radius:26px;background:rgba(22,13,42,.78);border:1px solid rgba(255,255,255,.09);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)">
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;cursor:pointer"><svg width="20" height="20"><circle cx="10" cy="10" r="4.6" style="fill:rgba(216,206,238,.42)"></circle><ellipse cx="10" cy="10" rx="8.6" ry="3" transform="rotate(-18 10 10)" style="fill:none;stroke:rgba(216,206,238,.42);stroke-width:1.3;opacity:.75"></ellipse></svg><span style="font-size:9.5px;color:rgba(216,206,238,.42)">Home</span></div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;cursor:pointer"><svg width="20" height="20"><circle cx="10" cy="10" r="2.6" style="fill:rgba(216,206,238,.42)"></circle><circle cx="10" cy="10" r="7.6" style="fill:none;stroke:rgba(216,206,238,.42);stroke-width:1.2;opacity:.65"></circle><circle cx="16.4" cy="6" r="1.9" style="fill:rgba(216,206,238,.42)"></circle></svg><span style="font-size:9.5px;color:rgba(216,206,238,.42)">Fuel</span></div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;cursor:pointer"><svg width="20" height="20"><path d="M10 2.6 L17.4 10 L10 17.4 L2.6 10 Z" style="fill:none;stroke:rgba(216,206,238,.42);stroke-width:1.6;stroke-linejoin:round"></path><circle cx="10" cy="10" r="1.7" style="fill:rgba(216,206,238,.42)"></circle></svg><span style="font-size:9.5px;color:rgba(216,206,238,.42)">Train</span></div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 7px;border-radius:20px;background:rgba(255,255,255,.09);cursor:pointer"><svg width="20" height="20"><circle cx="10" cy="5.5" r="3.2" style="fill:#f3e8ff"></circle><rect x="5.5" y="10" width="9" height="8" rx="4" style="fill:#f3e8ff"></rect></svg><span style="font-size:9.5px;font-weight:600;color:#f3e8ff">Body</span></div>
+</div>
+</div>
+</x-import>
+</div>
+<i data-row1-end style="display:none"></i>
+</div>
+<p class="dv-next">Try next: "make the planet more Saturn-like" · "more ships / fewer ships" · "add a food-detail screen"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;palette&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:[&quot;#8b5cf6&quot;,&quot;#d946ef&quot;,&quot;#f0abfc&quot;],&quot;options&quot;:[[&quot;#8b5cf6&quot;,&quot;#d946ef&quot;,&quot;#f0abfc&quot;],[&quot;#3b82f6&quot;,&quot;#22d3ee&quot;,&quot;#93c5fd&quot;],[&quot;#ef4444&quot;,&quot;#fb7185&quot;,&quot;#fed7aa&quot;],[&quot;#10b981&quot;,&quot;#84cc16&quot;,&quot;#6ee7b7&quot;]],&quot;section&quot;:&quot;Colors&quot;,&quot;tsType&quot;:&quot;string[]&quot;},&quot;motionSpeed&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0.25,&quot;max&quot;:2,&quot;step&quot;:0.05,&quot;section&quot;:&quot;Motion&quot;,&quot;tsType&quot;:&quot;number&quot;},&quot;parallax&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;section&quot;:&quot;Motion&quot;,&quot;tsType&quot;:&quot;boolean&quot;},&quot;ships&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;section&quot;:&quot;Background&quot;,&quot;tsType&quot;:&quot;boolean&quot;}}">
+/*
+  ORBIT - space-themed fitness + diet tracker (interactive prototype).
+  One class holds ALL app logic; the HTML template above binds to renderVals() by name.
+
+  SWIFTUI PORTING MAP
+  - state {extras, sets, rest, g, planet}   -> one @Observable AppStore
+  - D (static content)                      -> Swift structs (Food, Exercise, MuscleGroup)
+  - _pal() / _blend() / _scale6()           -> Theme struct; Color lerp in sRGB
+  - mk('a') + renderVals()                  -> computed view-model properties
+  - _gasTex()                               -> CGContext-generated SCNMaterial diffuse
+  - _makeScene()/_loop()                    -> 3 SceneKit scenes + CADisplayLink
+  - _makeBg()/_drawBg()                     -> TimelineView(.animation) + Canvas
+  - scroll listeners                        -> ScrollView offset preference -> scene params
+  - IntersectionObserver visibility gates   -> onAppear/onDisappear pause
+  Reference geometry: phone content 402x874pt; hero occupies top ~440pt.
+
+  TWEAKABLE PROPS (data-props JSON on this script tag; read via this.props):
+  - palette     string[3] hex [primary, secondary, accent]; 4 curated presets. EVERY color in the app
+                derives from it (_pal tints, _scale6 level scale, 3D materials, nebula, stars, ship);
+                _recolorScenes() re-themes live WITHOUT rebuilding scenes.
+  - motionSpeed .25-2, global time multiplier (the rAF loop advances t += dt*speed).
+  - parallax    bool; hero-host translateY(-95px*scroll) on/off.
+  - ships       bool; background ship fly-bys on/off.
+
+  TEMPLATE CONTRACT: the markup binds ONLY names returned by renderVals(); mk('a') builds the
+  A-suffixed per-screen keys. Holes are dotted lookups, never expressions.
+*/
+class Component extends DCLogic {
+  // Mutable app state. extras: indices into D.quick logged for dinner; sets: "exIdx-setIdx" -> Bool;
+  // rest: rest-timer seconds remaining; g: 'm'|'w' (figure sex); planet: 0-5 progression index (= ring count).
+  // ('a' = Nebula Glass; sole variant.)
+  // settings: sheet open; units 0=metric/1=imperial; rem/hap/adapt: reminder, haptics, adaptive-target toggles.
+  // flTab: Fuel food-log view - 0 = Meals cards, 1 = By-hour timeline (kept in sync with swipe position).
+  state = {
+    a: { extras: [], sets: {}, rest: 0, g: 'm', planet: 2, settings: false, units: 0, rem: true, hap: true, adapt: true, flTab: 0 },
+  };
+
+  // Settings sheet (Home): open/close + preference state. Toggle knobs and segmented-control styles
+  // are computed here so the template stays static; the sheet slides via transform, keeping the 3D
+  // hero animating beneath it.
+  _setsVals() {
+    const st = this.state.a, PAL = this._pal();
+    const set = (patch) => this.setState(s => ({ a: Object.assign({}, s.a, patch) }));
+    const tg = (on) => ({
+      bg: on ? 'linear-gradient(135deg,' + PAL.p1 + ',' + PAL.p2 + ')' : 'rgba(255,255,255,.10)',
+      knob: 'translateX(' + (on ? 17 : 0) + 'px)'
+    });
+    const rT = tg(st.rem), hT = tg(st.hap), aT = tg(st.adapt);
+    const seg = (on) => ({
+      bg: on ? 'rgba(255,255,255,.14)' : 'transparent',
+      col: on ? '#f4f0ff' : 'rgba(216,206,238,.55)',
+      bd: on ? '1px solid rgba(255,255,255,.16)' : '1px solid transparent'
+    });
+    const mS = seg(st.units === 0), iS = seg(st.units === 1);
+    return {
+      setsTx: 'translateX(' + (st.settings ? '0%' : '102%') + ')',
+      openSets: () => set({ settings: true }),
+      closeSets: () => set({ settings: false }),
+      remBg: rT.bg, remKnob: rT.knob, toggleRem: () => set({ rem: !st.rem }),
+      hapBg: hT.bg, hapKnob: hT.knob, toggleHap: () => set({ hap: !st.hap }),
+      adaptBg: aT.bg, adaptKnob: aT.knob, toggleAdapt: () => set({ adapt: !st.adapt }),
+      unitMBg: mS.bg, unitMCol: mS.col, unitMBd: mS.bd, selUnitM: () => set({ units: 0 }),
+      unitIBg: iS.bg, unitICol: iS.col, unitIBd: iS.bd, selUnitI: () => set({ units: 1 }),
+      unitsHint: st.units === 0 ? 'kg \u00b7 cm \u00b7 kcal' : 'lb \u00b7 in \u00b7 kcal',
+      setsPlanet: this.PN[st.planet]
+    };
+  }
+
+  // Static content. targets/base = kcal + macro grams (eaten so far before interactions).
+  // quick: dinner quick-add foods with full macros + h/time (where they land on the By-hour timeline).
+  // meals: logged meals, the single source for BOTH food-log views (portion feeds the Meals tab;
+  // h 0-23 + time string pin each item on the timeline). ex: session exercises (n = set count, tag = muscle credited).
+  // muscles: lvl 1-6 on the Beginner->World Class scale; tag links to exercise credit for the "today" glow.
+  get D() {
+    if (!this._D) this._D = {
+      target: { kcal: 2350, p: 185, c: 240, f: 72 },
+      base: { kcal: 1389, p: 96, c: 152, f: 41 },
+      quick: [
+        { name: 'Salmon & Rice Bowl', kcal: 612, p: 42, c: 58, f: 21, h: 19, time: '7:05 PM' },
+        { name: 'Whey Shake', kcal: 178, p: 32, c: 8, f: 3, h: 19, time: '7:12 PM' },
+        { name: 'Chicken Stir-fry', kcal: 524, p: 41, c: 48, f: 16, h: 19, time: '7:18 PM' }
+      ],
+      meals: {
+        bfast: [
+          { name: 'Greek Yogurt + Granola', portion: '1 bowl \u00b7 280 g', kcal: 342, h: 7, time: '7:20 AM' },
+          { name: 'Blueberries', portion: '100 g', kcal: 57, h: 7, time: '7:25 AM' },
+          { name: 'Espresso', portion: 'Double shot', kcal: 6, h: 6, time: '6:45 AM' }
+        ],
+        lunch: [
+          { name: 'Chicken Burrito Bowl', portion: 'Rice, beans, salsa', kcal: 642, h: 12, time: '12:40 PM' },
+          { name: 'Sparkling Water', portion: '355 ml', kcal: 0, h: 12, time: '12:45 PM' }
+        ],
+        snacks: [
+          { name: 'Apple + Peanut Butter', portion: '1 medium \u00b7 16 g PB', kcal: 197, h: 10, time: '10:30 AM' },
+          { name: 'Cottage Cheese', portion: '150 g', kcal: 145, h: 15, time: '3:30 PM' }
+        ]
+      },
+      ex: [
+        { name: 'Barbell Bench Press', scheme: '4 \u00d7 8 \u00b7 185 lb', n: 4, tag: 'Chest' },
+        { name: 'Incline DB Press', scheme: '3 \u00d7 10 \u00b7 60 lb', n: 3, tag: 'Chest' },
+        { name: 'Seated Overhead Press', scheme: '3 \u00d7 10 \u00b7 95 lb', n: 3, tag: 'Delts' },
+        { name: 'Cable Fly', scheme: '3 \u00d7 12 \u00b7 42.5 lb', n: 3, tag: 'Chest' },
+        { name: 'Triceps Pushdown', scheme: '3 \u00d7 12 \u00b7 57.5 lb', n: 3, tag: 'Triceps' }
+      ],
+      muscles: [
+        { key: 'chest', name: 'Chest', lvl: 4, tag: 'Chest' },
+        { key: 'delts', name: 'Shoulders', lvl: 3, tag: 'Delts' },
+        { key: 'traps', name: 'Traps', lvl: 3 },
+        { key: 'biceps', name: 'Biceps', lvl: 3 },
+        { key: 'fore', name: 'Forearms', lvl: 2 },
+        { key: 'core', name: 'Core', lvl: 3 },
+        { key: 'quads', name: 'Quads', lvl: 2 },
+        { key: 'calves', name: 'Calves', lvl: 1 },
+        { key: 'lats', name: 'Lats', lvl: 4 },
+        { key: 'tri', name: 'Triceps', lvl: 3, tag: 'Triceps' },
+        { key: 'low', name: 'Lower back', lvl: 3 },
+        { key: 'glutes', name: 'Glutes', lvl: 2 },
+        { key: 'hams', name: 'Hamstrings', lvl: 2 }
+      ],
+      scale: ['#4a3878', '#5f42b0', '#8b5cf6', '#c052e8', '#e879f9', '#fcd8ff'],
+      lvlNames: ['Beginner', 'Novice', 'Intermediate', 'Advanced', 'Elite', 'World Class']
+    };
+    return this._D;
+  }
+
+  // en-US thousands separators for every displayed number.
+  fmt(n) { return n.toLocaleString('en-US'); }
+
+  // Travel to planet i (0-5). The render loop notices and re-textures the Home hero + rebuilds rings.
+  setPlanet(v, i) { this.setState(s => ({ [v]: { ...s[v], planet: i } })); }
+
+  // Progression planet names, one per strength level; index doubles as ring count.
+  get PN() { return ['Ember', 'Dune', 'Titan', 'Aurora', 'Nova', 'Zenith']; }
+
+  // Color helpers: _h2r hex->[r,g,b]; _rgbStr hex->"r,g,b"; _blend(h1,h2,t) per-channel sRGB lerp; _rgba(hex,alpha).
+  _h2r(h) {
+    const n = parseInt(h.slice(1), 16);
+    return [n >> 16 & 255, n >> 8 & 255, n & 255];
+  }
+
+  _rgbStr(h) { return this._h2r(h).join(','); }
+
+  _blend(h1, h2, t) {
+    const a = this._h2r(h1), b = this._h2r(h2);
+    return '#' + a.map((x, i) => Math.round(x + (b[i] - x) * t).toString(16).padStart(2, '0')).join('');
+  }
+
+  _rgba(h, a) { return 'rgba(' + this._rgbStr(h) + ',' + a + ')'; }
+
+  // Active palette [primary, secondary, accent] from the palette tweak/prop + derived tints.
+  // SwiftUI: Theme struct { p1, p2, p3, secL, priL, priLL } computed once per palette change.
+  _pal() {
+    const pal = this.props.palette;
+    const arr = Array.isArray(pal) && pal.length >= 3 ? pal : ['#8b5cf6', '#d946ef', '#f0abfc'];
+    const p1 = arr[0], p2 = arr[1], p3 = arr[2];
+    return { p1, p2, p3, secL: this._blend(p2, '#ffffff', .28), priL: this._blend(p1, '#ffffff', .3), priLL: this._blend(p1, '#ffffff', .5) };
+  }
+
+  // 6-stop strength-level scale (Beginner..World Class), all derived from the palette so themes re-map it.
+  _scale6() {
+    const P = this._pal();
+    return [this._blend(P.p1, '#0b0620', .55), this._blend(P.p1, '#0b0620', .28), P.p1, this._blend(P.p1, P.p2, .55), P.secL, this._blend(P.p3, '#ffffff', .45)];
+  }
+
+  // Derived totals: kcal/macros = base + all logged extras; done = completed set count (of 16).
+  totals(v) {
+    const D = this.D, st = this.state[v];
+    let kcal = D.base.kcal, p = D.base.p, c = D.base.c, f = D.base.f, extraKcal = 0;
+    st.extras.forEach(i => { const q = D.quick[i]; kcal += q.kcal; p += q.p; c += q.c; f += q.f; extraKcal += q.kcal; });
+    const done = Object.values(st.sets).filter(Boolean).length;
+    return { kcal, p, c, f, extraKcal, done, total: 16 };
+  }
+
+  // Muscle tags with >=1 logged set today -> drives glow filters on Body + "today" flags in the list.
+  doneTags(v) {
+    const st = this.state[v], tags = {};
+    this.D.ex.forEach((e, ei) => { for (let si = 0; si < e.n; si++) if (st.sets[ei + '-' + si]) tags[e.tag] = true; });
+    return tags;
+  }
+
+  // Quick-add food i to dinner (idempotent). Pulses the matching macro moon in the Fuel 3D scene.
+  add(v, i) {
+    if (this.state[v].extras.includes(i)) return;
+    this._pulse[v] = 1;
+    this.setState(s => ({ [v]: { ...s[v], extras: [...s[v].extras, i] } }));
+  }
+
+  // Toggle one set circle; checking a set (re)starts the 120s rest countdown chip.
+  tog(v, k) {
+    const on = !this.state[v].sets[k];
+    this.setState(s => ({ [v]: { ...s[v], sets: { ...s[v].sets, [k]: on }, rest: on ? 120 : s[v].rest } }));
+    if (on) this.startRest(v);
+  }
+
+  // 1 Hz rest countdown; the REST chip hides when it reaches 0.
+  startRest(v) {
+    clearInterval(this._ri[v]);
+    this._ri[v] = setInterval(() => {
+      const r = (this.state[v].rest || 0) - 1;
+      if (r <= 0) clearInterval(this._ri[v]);
+      this.setState(s => ({ [v]: { ...s[v], rest: Math.max(0, r) } }));
+    }, 1000);
+  }
+
+  // Set Body figure sex: 'm' | 'w' (sc-ifs in the template swap the four SVGs).
+  setG(v, g) { this.setState(s => ({ [v]: { ...s[v], g } })); }
+
+  // Food-log tab switch (Fuel): set flTab + glide the swipe container to the matching panel.
+  // Mandatory scroll-snap cancels smooth programmatic scrolls (it re-snaps to the CURRENT panel), and the
+  // scroll listener would revert flTab mid-flight; so: lift snapping, glide with the _flAnim[v] flag set
+  // (listener stays quiet), then restore snap + re-sync from the real position ~550ms later.
+  // SwiftUI: a plain withAnimation on the paged offset; this workaround is web-only.
+  _flGo(v, i) {
+    this.setState(s => ({ [v]: { ...s[v], flTab: i } }));
+    const el = document.getElementById('fl-' + v + '-swipe');
+    if (!el) return;
+    if (!this._flAnim) this._flAnim = {};
+    clearTimeout(this._flAnim[v]);
+    el.style.scrollSnapType = 'none';
+    el.scrollTo({ left: i * (el.scrollWidth - el.clientWidth), behavior: 'smooth' });
+    this._flAnim[v] = setTimeout(() => {
+      el.style.scrollSnapType = 'x mandatory';
+      this._flAnim[v] = null;
+      const max = el.scrollWidth - el.clientWidth;
+      const j = max > 0 && el.scrollLeft > max / 2 ? 1 : 0;
+      if ((this.state[v].flTab || 0) !== j) this.setState(s => ({ [v]: { ...s[v], flTab: j } }));
+    }, 550);
+  }
+
+  // Builds every bound template value: ring dash-offsets (r54 circle C=339.3, r24 C=150.8), macro bars,
+  // food-log rows (Meals tab + tl* By-hour timeline + flTb* tab state), quick-add chip visual states,
+  // set-circle states (gradient when done), score = 512 + doneSets,
+  // rest chip, muscle rows (color/level/segments/today), planet picker chips, and palette color strings.
+  // SwiftUI: these become computed properties on the store; chips/circles read them declaratively.
+  mk(v) {
+    const U = v.toUpperCase(), D = this.D, st = this.state[v], t = this.totals(v), T = D.target;
+    // NOTE FOR PORTING: only variant 'a' exists (v is always 'a', glass always true). The `glass ? : `
+    // false-branches below are dead remnants of a removed second style variant — port ONLY the glass values.
+    const glass = v === 'a';
+    const pP = Math.min(t.p / T.p, 1), pC = Math.min(t.c / T.c, 1), pF = Math.min(t.f / T.f, 1), pK = Math.min(t.kcal / T.kcal, 1);
+    this._live[v] = { pP, pC, pF, heat: t.done / t.total };
+    const rem = Math.max(T.kcal - t.kcal, 0);
+    const PL = this._pal();
+    const rc = glass ? [PL.secL, PL.p1, PL.p3] : [PL.secL, PL.priL, PL.priLL];
+    const o = {};
+    o['calRem' + U] = this.fmt(rem);
+    o['calOff' + U] = (339.3 * (1 - pK)).toFixed(1);
+    o['eaten' + U] = this.fmt(t.kcal);
+    o['fuelRem' + U] = this.fmt(rem);
+    o['fuelBarW' + U] = (pK * 100).toFixed(0) + '%';
+    o['bars' + U] = [
+      { label: 'Protein', color: rc[0], w: (pP * 100).toFixed(0) + '%', txt: t.p + ' / ' + T.p + ' g' },
+      { label: 'Carbs', color: rc[1], w: (pC * 100).toFixed(0) + '%', txt: t.c + ' / ' + T.c + ' g' },
+      { label: 'Fat', color: rc[2], w: (pF * 100).toFixed(0) + '%', txt: t.f + ' / ' + T.f + ' g' }
+    ];
+    o['rings' + U] = [
+      { short: 'P', color: rc[0], off: (150.8 * (1 - pP)).toFixed(1), txt: t.p + '/' + T.p + 'g' },
+      { short: 'C', color: rc[1], off: (150.8 * (1 - pC)).toFixed(1), txt: t.c + '/' + T.c + 'g' },
+      { short: 'F', color: rc[2], off: (150.8 * (1 - pF)).toFixed(1), txt: t.f + '/' + T.f + 'g' }
+    ];
+    o['dinner' + U] = st.extras.map(i => ({ name: D.quick[i].name, portion: '1 serving', kcal: D.quick[i].kcal }));
+    o['dinnerEmpty' + U] = st.extras.length === 0;
+    o['dinKcal' + U] = this.fmt(t.extraKcal);
+    o['quick' + U] = D.quick.map((q, i) => {
+      const added = st.extras.includes(i);
+      return {
+        label: (added ? '\u2713 ' : '+ ') + q.name,
+        bg: added ? (glass ? this._rgba(PL.p2, .18) : this._rgba(PL.secL, .14)) : (glass ? 'rgba(255,255,255,.06)' : this._rgba(PL.p1, .08)),
+        bd: added ? (glass ? this._rgba(PL.secL, .55) : PL.secL) : (glass ? 'rgba(255,255,255,.14)' : this._rgba(PL.p1, .4)),
+        col: added ? this._blend(PL.p3, '#ffffff', .3) : (glass ? '#e9e2fa' : '#cfc6ee'),
+        onAdd: () => this.add(v, i)
+      };
+    });
+    o['ex' + U] = D.ex.map((e, ei) => ({
+      name: e.name, scheme: e.scheme, tag: e.tag,
+      sets: Array.from({ length: e.n }, (_, si) => {
+        const k = ei + '-' + si, done = !!st.sets[k];
+        return {
+          n: si + 1,
+          bg: done ? (glass ? 'linear-gradient(135deg,' + PL.p1 + ',' + PL.p2 + ')' : this._rgba(PL.secL, .16)) : (glass ? 'rgba(255,255,255,.05)' : 'transparent'),
+          bd: done ? (glass ? this._rgba(PL.secL, .6) : PL.secL) : (glass ? 'rgba(255,255,255,.16)' : this._rgba(PL.p1, .4)),
+          col: done ? (glass ? '#fff' : this._blend(PL.p3, '#ffffff', .3)) : (glass ? 'rgba(230,222,250,.7)' : 'rgba(196,190,230,.6)'),
+          sh: done ? '0 0 12px ' + this._rgba(PL.p2, .45) : 'none',
+          onToggle: () => this.tog(v, k)
+        };
+      })
+    }));
+    o['trainDone' + U] = t.done + ' / ' + t.total;
+    o['trainPct' + U] = ((t.done / t.total) * 100).toFixed(0) + '%';
+    o['score' + U] = this.fmt(512 + t.done);
+    o['scoreDelta' + U] = '+' + (4 + t.done) + ' this wk';
+    o['restOn' + U] = st.rest > 0;
+    o['restTxt' + U] = Math.floor(st.rest / 60) + ':' + String(st.rest % 60).padStart(2, '0');
+    const dts = this.doneTags(v);
+    o['fxChest' + U] = dts.Chest ? 'drop-shadow(0 0 7px ' + this._rgba(PL.secL, .85) + ')' : 'none';
+    o['fxDelts' + U] = dts.Delts ? 'drop-shadow(0 0 7px ' + this._rgba(PL.secL, .85) + ')' : 'none';
+    o['fxTri' + U] = dts.Triceps ? 'drop-shadow(0 0 7px ' + this._rgba(PL.secL, .85) + ')' : 'none';
+    o['isMale' + U] = st.g === 'm';
+    o['isFemale' + U] = st.g === 'w';
+    o['setMale' + U] = () => this.setG(v, 'm');
+    o['setFemale' + U] = () => this.setG(v, 'w');
+    const actBg = glass ? 'rgba(255,255,255,.16)' : 'rgba(139,92,246,.28)';
+    const actCol = glass ? '#fff' : '#f5d0fe';
+    const inCol = glass ? 'rgba(216,206,238,.5)' : 'rgba(196,190,230,.5)';
+    o['mtBg' + U] = st.g === 'm' ? actBg : 'transparent';
+    o['mtCol' + U] = st.g === 'm' ? actCol : inCol;
+    o['ftBg' + U] = st.g === 'w' ? actBg : 'transparent';
+    o['ftCol' + U] = st.g === 'w' ? actCol : inCol;
+    o['mList' + U] = D.muscles.map(m => ({
+      name: m.name,
+      label: D.lvlNames[m.lvl - 1],
+      color: this._scale6()[m.lvl - 1],
+      glow: this._rgba(PL.secL, .45),
+      today: m.tag && dts[m.tag] ? '\u25b2 today' : '',
+      segs: Array.from({ length: 6 }, (_, i) => ({ bg: i < m.lvl ? this._scale6()[i] : (glass ? 'rgba(255,255,255,.10)' : this._rgba(PL.p1, .15)) }))
+    }));
+    const P6 = this._scale6();
+    o['planets' + U] = this.PN.map((nm, i) => {
+      const act = st.planet === i;
+      return {
+        name: nm,
+        onSel: () => this.setPlanet(v, i),
+        dotBg: P6[i],
+        bg: act ? (glass ? 'rgba(255,255,255,.14)' : this._rgba(PL.p1, .22)) : (glass ? 'rgba(255,255,255,.05)' : 'transparent'),
+        bd: act ? this._rgba(PL.secL, .6) : (glass ? 'rgba(255,255,255,.12)' : this._rgba(PL.p1, .35)),
+        col: act ? '#ffffff' : (glass ? 'rgba(230,222,250,.7)' : 'rgba(196,190,230,.6)')
+      };
+    });
+    o['planetName' + U] = this.PN[st.planet];
+    o['planetMeta' + U] = D.lvlNames[st.planet] + ' · ' + st.planet + (st.planet === 1 ? ' ring' : ' rings');
+    // By-hour food timeline (Fuel "By hour" tab): one row per hour, 6 AM..9 PM. Static meals pin to their
+    // D.meals h; dinner quick-adds land in the 19:00 row live. labCol/dotBg/dotSh light the hour when it has
+    // entries; nowOn renders the pulsing NOW marker (fictional current time 7:42 PM); last row hides its rail.
+    const byH = {};
+    const pushT = (f, meal) => { (byH[f.h] = byH[f.h] || []).push({ name: f.name, time: f.time, meal, kcal: f.kcal }); };
+    D.meals.bfast.forEach(f => pushT(f, 'Breakfast'));
+    D.meals.lunch.forEach(f => pushT(f, 'Lunch'));
+    D.meals.snacks.forEach(f => pushT(f, 'Snack'));
+    st.extras.forEach(i => pushT(D.quick[i], 'Dinner'));
+    o['tl' + U] = Array.from({ length: 16 }, (_, k) => {
+      const hh = 6 + k, items = byH[hh] || [], has = items.length > 0;
+      return {
+        label: (hh % 12 === 0 ? 12 : hh % 12) + (hh < 12 ? ' AM' : ' PM'),
+        items,
+        labCol: has ? 'rgba(216,206,238,.68)' : 'rgba(216,206,238,.32)',
+        dotBg: has ? PL.p2 : 'rgba(255,255,255,.16)',
+        dotSh: has ? '0 0 7px ' + this._rgba(PL.p2, .65) : 'none',
+        railBg: hh === 21 ? 'transparent' : 'rgba(255,255,255,.08)',
+        nowOn: hh === 19,
+        minH: has ? '0px' : '15px',
+        padB: has || hh === 19 ? '10px' : '0px'
+      };
+    });
+    // Meals / By-hour segmented control state + handlers (the swipe container's scroll listener mirrors this).
+    const ft = st.flTab || 0;
+    const fseg = on => ({ bg: on ? 'rgba(255,255,255,.14)' : 'transparent', col: on ? '#f4f0ff' : 'rgba(216,206,238,.55)' });
+    const fM = fseg(ft === 0), fH = fseg(ft === 1);
+    o['flTbMBg' + U] = fM.bg; o['flTbMCol' + U] = fM.col;
+    o['flTbHBg' + U] = fH.bg; o['flTbHCol' + U] = fH.col;
+    o['flMeals' + U] = () => this._flGo(v, 0);
+    o['flHours' + U] = () => this._flGo(v, 1);
+    return o;
+  }
+
+  // Everything the template references by name. Colors are exposed twice: hex (cPri/cSec/cAcc/cSecL/cPriL/cPriLL)
+  // and "r,g,b" strings (rPri/rSec/rSecL/rAcc/rPriL/rPriD/rPriD2) for rgba(...) interpolation in inline styles.
+  // mTraps..mHams = per-muscle fill colors for the Body figures (front + back).
+  renderVals() {
+    if (!this._live) this._live = { a: {}, b: {} }; // b slots here + below are dead (removed variant); only a is read
+    if (!this._pulse) this._pulse = { a: 0, b: 0 };
+    if (!this._ri) this._ri = {};
+    const D = this.D;
+    const S6 = this._scale6(), PAL = this._pal();
+    const col = k => S6[D.muscles.find(m => m.key === k).lvl - 1];
+    return {
+      ...this._setsVals(),
+      cPri: PAL.p1, cSec: PAL.p2, cAcc: PAL.p3, cSecL: PAL.secL, cPriL: PAL.priL, cPriLL: PAL.priLL,
+      rPri: this._rgbStr(PAL.p1), rSec: this._rgbStr(PAL.p2), rSecL: this._rgbStr(PAL.secL),
+      rAcc: this._rgbStr(PAL.p3), rPriL: this._rgbStr(PAL.priL),
+      rPriD: this._rgbStr(this._blend(PAL.p1, '#000000', .12)), rPriD2: this._rgbStr(this._blend(PAL.p1, '#000000', .28)),
+      gradScale: 'linear-gradient(90deg,' + S6.join(',') + ')',
+      // Meals-tab lists come straight from D.meals (name/portion/kcal read there; h/time only used by the timeline).
+      bfast: D.meals.bfast,
+      lunch: D.meals.lunch,
+      snacks: D.meals.snacks,
+      mTraps: col('traps'), mDelts: col('delts'), mChest: col('chest'), mBiceps: col('biceps'),
+      mFore: col('fore'), mCore: col('core'), mQuads: col('quads'), mCalves: col('calves'),
+      mLats: col('lats'), mTri: col('tri'), mLow: col('low'), mGlutes: col('glutes'), mHams: col('hams'),
+      ...this.mk('a')
+    };
+  }
+
+  // Boot: poll every 450ms until phone canvases/hosts have layout, then build each starfield + 3D scene once.
+  // A single rAF loop (._loop) drives starfields, scene choreography, and scroll smoothing.
+  componentDidMount() {
+    if (!this._live) this._live = { a: {}, b: {} };
+    if (!this._pulse) this._pulse = { a: 0, b: 0 };
+    if (!this._ri) this._ri = {};
+    this._scenes = []; this._bgs = []; this._t = 0; this._scanN = 0;
+    this._pendGl = [
+      ['gl-a-home', 'sc-a-home', 'home', 'a'], ['gl-a-fuel', 'sc-a-fuel', 'fuel', 'a'], ['gl-a-train', 'sc-a-train', 'train', 'a']
+    ];
+    this._pendBg = ['bg-a-home', 'bg-a-fuel', 'bg-a-train', 'bg-a-body'].map(id => [id, 'sc-' + id.slice(3)]);
+    this._pendFl = ['fl-a-swipe'];
+    this._poll = setInterval(() => this._scan(), 450);
+    this._scan();
+    this._loop();
+  }
+
+  // Teardown: stop rAF + layout poll + rest timers, dispose WebGL renderers.
+  componentWillUnmount() {
+    this._dead = true;
+    cancelAnimationFrame(this._raf);
+    clearInterval(this._poll);
+    Object.values(this._ri || {}).forEach(clearInterval);
+    (this._scenes || []).forEach(s => { try { s.renderer.dispose(); } catch (e) { } });
+  }
+
+  // Layout-poll body: mounts each starfield canvas / 3D scene exactly once, as soon as its host has
+  // real width (hosts appear as the streamed template lays out); stops when everything is live.
+  _scan() {
+    this._scanN++;
+    this._pendBg = this._pendBg.filter(pair => {
+      const c = document.getElementById(pair[0]);
+      if (!c || c.clientWidth < 40) return true;
+      const seed = { home: 5, fuel: 6, train: 7, body: 8 }[pair[0].slice(5)] || (this._bgs.length + 1);
+      this._makeBg(c, document.getElementById(pair[1]), seed);
+      return false;
+    });
+    if (typeof THREE !== 'undefined') {
+      this._pendGl = this._pendGl.filter(cfg => {
+        const h = document.getElementById(cfg[0]);
+        if (!h || h.clientWidth < 40) return true;
+        this._makeScene(h, document.getElementById(cfg[1]), cfg[2], cfg[3]);
+        return false;
+      });
+    }
+    // Food-log swipe container: attach a scroll listener once so swiping the panels updates flTab (tab highlight).
+    this._pendFl = (this._pendFl || []).filter(id => {
+      const el = document.getElementById(id);
+      if (!el || el.clientWidth < 40) return true;
+      const v = id.split('-')[1];
+      el.addEventListener('scroll', () => {
+        if (this._flAnim && this._flAnim[v]) return; // programmatic glide in flight; _flGo owns flTab
+        const max = el.scrollWidth - el.clientWidth;
+        const i = max > 0 && el.scrollLeft > max / 2 ? 1 : 0;
+        if ((this.state[v].flTab || 0) !== i) this.setState(s => ({ [v]: { ...s[v], flTab: i } }));
+      }, { passive: true });
+      return false;
+    });
+    if ((!this._pendBg.length && !this._pendGl.length && !this._pendFl.length) || this._scanN > 400) clearInterval(this._poll);
+  }
+
+  // Pre-renders nebula haze: one radial gradient blob per star cluster (primary/secondary at ~26%->0)
+  // plus a small bright accent core. Repainted in place on palette change.
+  _paintNeb(B) {
+    const nx = B.neb.getContext('2d');
+    nx.clearRect(0, 0, B.neb.width, B.neb.height);
+    const P0 = this._pal();
+    for (let i = 0; i < B.nebC.length; i++) {
+      const nc = B.nebC[i], col = nc.pink ? this._rgbStr(P0.p2) : this._rgbStr(P0.p1);
+      const g = nx.createRadialGradient(nc.cx, nc.cy + 40, 0, nc.cx, nc.cy + 40, nc.r);
+      g.addColorStop(0, 'rgba(' + col + ',.26)');
+      g.addColorStop(.55, 'rgba(' + col + ',.10)');
+      g.addColorStop(1, 'rgba(' + col + ',0)');
+      nx.fillStyle = g;
+      nx.beginPath(); nx.arc(nc.cx, nc.cy + 40, nc.r, 0, 6.2832); nx.fill();
+      const g2 = nx.createRadialGradient(nc.cx, nc.cy + 40, 0, nc.cx, nc.cy + 40, nc.r * .4);
+      g2.addColorStop(0, 'rgba(' + this._rgbStr(this._blend(P0.p3, '#ffffff', .2)) + ',.14)');
+      g2.addColorStop(1, 'rgba(' + this._rgbStr(P0.p3) + ',0)');
+      nx.fillStyle = g2;
+      nx.beginPath(); nx.arc(nc.cx, nc.cy + 40, nc.r * .4, 0, 6.2832); nx.fill();
+    }
+  }
+
+  // Live re-theme: updates every 3D material (stars, atmosphere, moons, orbit rings, asteroid emissive)
+  // and repaints nebulae when the palette prop changes - no scene rebuild, so motion is uninterrupted.
+  _recolorScenes() {
+    if (!this._scenes) return;
+    const P0 = this._pal();
+    for (const S of this._scenes) {
+      const hud = S.v === 'b', P = S.P;
+      P.stars.material.color.set(hud ? P0.priL : this._blend(P0.p1, '#ffffff', .62));
+      if (S.type === 'home') {
+        if (P.atmo) P.atmo.material.color.set(this._blend(P0.p1, '#ffffff', .18));
+        if (P.wire) P.wire.material.color.set(hud ? P0.p1 : P0.secL);
+        if (P.moons) P.moons.forEach(mn => {
+          mn.mesh.material.color.set(P0.p3);
+          if (mn.mesh.material.emissive) mn.mesh.material.emissive.set(P0.p2);
+        });
+        if (P.shipGlow && P.shipGlow.emissive) P.shipGlow.emissive.set(P0.p3);
+        if (P.planet.material.emissive) P.planet.material.emissive.set(this._blend(P0.p1, '#000000', .55));
+      } else if (S.type === 'fuel') {
+        const cols = hud ? [P0.secL, P0.priL, P0.priLL] : [P0.secL, P0.p1, P0.p3];
+        P.orbits.forEach((o, i) => {
+          o.sub.children[0].material.color.set(cols[i]);
+        });
+        if (P.wire) P.wire.material.color.set(P0.p1);
+        if (P.planet.material.emissive) P.planet.material.emissive.set(this._blend(P0.p1, '#000000', .6));
+        const oldm = P.planet.material.map;
+        P.planet.material.map = this._gasTex(hud ? 19 : 11);
+        P.planet.material.needsUpdate = true;
+        if (oldm) oldm.dispose();
+      } else {
+        if (P.wire) P.wire.material.color.set(P0.priL);
+        if (P.debris) P.debris.forEach(dd => { if (!dd.astro) dd.d.material.color.set(hud ? P0.p1 : this._blend(P0.p1, '#777777', .45)); });
+        if (P.visorMat && P.visorMat.emissive) P.visorMat.emissive.set(P0.p1);
+      }
+    }
+    if (this._bgs) for (const B of this._bgs) this._paintNeb(B);
+  }
+
+  // Starfield canvas. Deterministic per-screen seed (home 5 / fuel 6 / train 7 / body 8) so every screen
+  // shows the same sky. ~5 gaussian clusters (20-33 stars each, brighter, some accent-tinted) + 55 loose stars.
+  // Parallax: star y shifts by scroll*150*depth (depth .12-.42); slow sine drift; shooting star every 3.5-10.5s;
+  // tiny ship crossing every 14-40s. SwiftUI: TimelineView(.animation) + Canvas, gated by Reduce Motion.
+  _makeBg(c, scEl, seed) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const W = c.clientWidth, H = c.clientHeight;
+    c.width = W * dpr; c.height = H * dpr;
+    const ctx = c.getContext('2d');
+    ctx.scale(dpr, dpr);
+    let sd = seed * 7919 + 133;
+    const rnd = () => { sd = (sd * 9301 + 49297) % 233280; return sd / 233280; };
+    const stars = [];
+    const nebC = [];
+    for (let ci = 0; ci < 5; ci++) {
+      const cx = 30 + rnd() * (W - 60), cy = 40 + rnd() * (H - 80), depth = [.14, .2, .28, .34, .42][ci];
+      const spread = 34 + rnd() * 36, n = 20 + Math.floor(rnd() * 14);
+      nebC.push({ cx, cy, r: spread * (2.2 + rnd() * 1.2), pink: rnd() < .4 });
+      for (let i = 0; i < n; i++) {
+        stars.push({ x: cx + (rnd() + rnd() - 1) * spread, y: cy + (rnd() + rnd() - 1) * spread, r: .5 + rnd() * 1.9, a: .5 + rnd() * .5, tw: .8 + rnd() * 2.4, ph: rnd() * 6.28, d: depth, pink: rnd() < .22 });
+      }
+    }
+    for (let i = 0; i < 55; i++) stars.push({ x: rnd() * W, y: rnd() * H, r: .3 + rnd() * 1.1, a: .3 + rnd() * .55, tw: 1 + rnd() * 2, ph: rnd() * 6.28, d: .12 + rnd() * .3, pink: rnd() < .12 });
+    const neb = document.createElement('canvas');
+    neb.width = W; neb.height = H + 80;
+    const B = { ctx, W, H, stars, neb, nebC, rnd, scroll: 0, target: 0, vis: true, shootAt: 2 + rnd() * 6, shoot: null, shipAt: 6 + rnd() * 22, ship: null };
+    this._paintNeb(B);
+    if (scEl) scEl.addEventListener('scroll', () => { const m = scEl.scrollHeight - scEl.clientHeight; B.target = m > 0 ? scEl.scrollTop / m : 0; }, { passive: true });
+    if (typeof IntersectionObserver !== 'undefined') new IntersectionObserver(en => { B.vis = en[0].isIntersecting; }).observe(c);
+    this._bgs.push(B);
+  }
+
+  // Per-frame starfield paint: nebula layer (scroll offset *26), twinkle = a*(.68+.32*sin(t*tw+ph)),
+  // 2.7x halo at 25% alpha on big stars, shooting-star streak with gradient tail, ship hull + engine trail + bob.
+  _drawBg(B, t, dt, ships) {
+    const ctx = B.ctx, W = B.W, H = B.H, PAL = this._pal();
+    B.scroll += (B.target - B.scroll) * .08;
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+    ctx.drawImage(B.neb, 0, -40 - B.scroll * 26 + Math.sin(t * .05) * 5);
+    for (let i = 0; i < B.stars.length; i++) {
+      const s = B.stars[i];
+      let y = s.y - B.scroll * 150 * s.d + Math.sin(t * .06 + s.ph) * 10 * s.d;
+      const x = s.x + Math.cos(t * .045 + s.ph) * 7 * s.d;
+      y = ((y % (H + 30)) + H + 30) % (H + 30) - 15;
+      let a = s.a * (.68 + .32 * Math.sin(t * s.tw + s.ph));
+      a = a < 0 ? 0 : (a > 1 ? 1 : a);
+      ctx.fillStyle = s.pink ? PAL.p3 : '#efeaff';
+      if (s.r > 1.25) {
+        ctx.globalAlpha = a * .25;
+        ctx.beginPath(); ctx.arc(x, y, s.r * 2.7, 0, 6.2832); ctx.fill();
+      }
+      ctx.globalAlpha = a;
+      ctx.beginPath(); ctx.arc(x, y, s.r, 0, 6.2832); ctx.fill();
+    }
+    B.shootAt -= dt;
+    if (B.shootAt <= 0 && !B.shoot) {
+      const dir = B.rnd() < .5 ? 1 : -1;
+      B.shoot = { x: 30 + B.rnd() * (W - 60), y: 20 + B.rnd() * H * .45, vx: (240 + B.rnd() * 170) * dir, vy: 130 + B.rnd() * 90, life: .75, max: .75 };
+    }
+    if (B.shoot) {
+      const sh = B.shoot;
+      sh.x += sh.vx * dt; sh.y += sh.vy * dt; sh.life -= dt;
+      const k = sh.life / sh.max;
+      if (k > 0) {
+        ctx.globalAlpha = k * .9;
+        const tx = sh.x - sh.vx * .09, ty = sh.y - sh.vy * .09;
+        const g = ctx.createLinearGradient(sh.x, sh.y, tx, ty);
+        g.addColorStop(0, '#ffffff'); g.addColorStop(1, this._rgba(PAL.secL, 0));
+        ctx.strokeStyle = g; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(sh.x, sh.y); ctx.lineTo(tx, ty); ctx.stroke();
+      }
+      if (sh.life <= 0 || sh.x < -40 || sh.x > W + 40 || sh.y > H + 40) { B.shoot = null; B.shootAt = 3.5 + B.rnd() * 7; }
+    }
+    if (ships) {
+      B.shipAt -= dt;
+      if (B.shipAt <= 0 && !B.ship) {
+        const dir = B.rnd() < .5 ? 1 : -1;
+        B.ship = { dir, x: dir > 0 ? -26 : W + 26, y: 70 + B.rnd() * (H - 240), sp: (44 + B.rnd() * 30) * dir, bob: B.rnd() * 6.28 };
+      }
+      if (B.ship) {
+        const sp = B.ship;
+        sp.x += sp.sp * dt;
+        const y = sp.y + Math.sin(t * 1.4 + sp.bob) * 3;
+        ctx.save(); ctx.translate(sp.x, y); ctx.scale(sp.dir, 1);
+        ctx.globalAlpha = .3;
+        const tg = ctx.createLinearGradient(-9, 0, -34, 0);
+        tg.addColorStop(0, PAL.secL); tg.addColorStop(1, this._rgba(PAL.secL, 0));
+        ctx.strokeStyle = tg; ctx.lineWidth = 2; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(-34, 0); ctx.stroke();
+        ctx.globalAlpha = .92; ctx.fillStyle = '#ece5ff';
+        ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-6, -4.4); ctx.lineTo(-3, 0); ctx.lineTo(-6, 4.4); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = PAL.p1; ctx.beginPath(); ctx.arc(2.6, 0, 1.5, 0, 6.2832); ctx.fill();
+        ctx.fillStyle = PAL.secL; ctx.beginPath(); ctx.arc(-7.5, 0, 1.9, 0, 6.2832); ctx.fill();
+        ctx.restore();
+        if ((sp.dir > 0 && sp.x > W + 30) || (sp.dir < 0 && sp.x < -30)) { B.ship = null; B.shipAt = 14 + B.rnd() * 26; }
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Procedural gas-giant texture, 512x256, deterministic per seed (planet index):
+  // 1) horizontal latitude bands (6-30px) in random palette blends; 2) per-row sine shear
+  //    offset = sin(y*.085+seed)*10 + sin(y*.021+seed*2.7)*26 (wrapped) to make turbulent flow;
+  // 3) 4 storm ovals (light accent/secondary over dark offset shadow); 4) darkened poles.
+  // SwiftUI: same algorithm with CGContext -> UIImage -> SCNMaterial.diffuse.
+  _gasTex(seed) {
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 256;
+    const x = c.getContext('2d');
+    let sd = seed * 4241 + 97;
+    const rnd = () => { sd = (sd * 9301 + 49297) % 233280; return sd / 233280; };
+    const GP = this._pal();
+    const cols = [this._blend(GP.p1, '#000000', .6), this._blend(GP.p1, '#000000', .42), this._blend(GP.p1, '#000000', .25), this._blend(GP.p1, '#000000', .12), GP.p1, this._blend(GP.p1, '#ffffff', .12), GP.priL, this._blend(GP.p1, GP.p2, .4), this._blend(GP.p2, '#ffffff', .15), GP.priLL, this._blend(GP.p3, '#ffffff', .3)];
+    x.fillStyle = this._blend(GP.p1, '#000000', .3);
+    x.fillRect(0, 0, 512, 256);
+    let y = 0;
+    while (y < 256) {
+      const h = 6 + rnd() * 24;
+      x.globalAlpha = .5 + rnd() * .5;
+      x.fillStyle = cols[Math.floor(rnd() * cols.length)];
+      x.fillRect(0, y, 512, h + 1.5);
+      y += h;
+    }
+    x.globalAlpha = 1;
+    const tmp = document.createElement('canvas');
+    tmp.width = 512; tmp.height = 256;
+    tmp.getContext('2d').drawImage(c, 0, 0);
+    x.clearRect(0, 0, 512, 256);
+    for (let yy = 0; yy < 256; yy++) {
+      const off = Math.round(Math.sin(yy * .085 + seed) * 10 + Math.sin(yy * .021 + seed * 2.7) * 26);
+      x.drawImage(tmp, 0, yy, 512, 1, off - 512, yy, 512, 1);
+      x.drawImage(tmp, 0, yy, 512, 1, off, yy, 512, 1);
+      x.drawImage(tmp, 0, yy, 512, 1, off + 512, yy, 512, 1);
+    }
+    for (let i = 0; i < 4; i++) {
+      const ex = 80 + rnd() * 350, ey = 60 + rnd() * 140, rw = 15 + rnd() * 24, rh = 6 + rnd() * 10;
+      x.globalAlpha = .3;
+      x.fillStyle = this._blend(GP.p1, '#000000', .7);
+      x.beginPath(); x.ellipse(ex + 3, ey + 2, rw * 1.2, rh * 1.25, 0, 0, 6.2832); x.fill();
+      x.globalAlpha = .4 + rnd() * .3;
+      x.fillStyle = i % 2 ? this._blend(GP.p3, '#ffffff', .35) : GP.secL;
+      x.beginPath(); x.ellipse(ex, ey, rw, rh, 0, 0, 6.2832); x.fill();
+    }
+    const g1 = x.createLinearGradient(0, 0, 0, 256);
+    g1.addColorStop(0, 'rgba(10,4,30,.6)');
+    g1.addColorStop(.16, 'rgba(10,4,30,0)');
+    g1.addColorStop(.84, 'rgba(10,4,30,0)');
+    g1.addColorStop(1, 'rgba(10,4,30,.6)');
+    x.globalAlpha = 1;
+    x.fillStyle = g1;
+    x.fillRect(0, 0, 512, 256);
+    return new THREE.CanvasTexture(c);
+  }
+
+  // Progression rings: count = planet index (0..5), radius 1.5 + 0.26i, alternating palette colors,
+  // opacity fading outward. Flat annuli tilted to the ring plane.
+  _buildRings(S) {
+    const P = S.P, hud = S.v === 'b';
+    const idx = this.state[S.v].planet;
+    while (P.rg.children.length) {
+      const m = P.rg.children[0];
+      P.rg.remove(m);
+      if (m.geometry) m.geometry.dispose();
+      if (m.material) m.material.dispose();
+    }
+    const PL = this._pal();
+    const cols = [PL.secL, PL.p3, PL.p1, PL.secL, PL.p3];
+    for (let i = 0; i < idx; i++) {
+      const r = 1.5 + i * .26;
+      let mesh;
+      if (!hud) {
+        mesh = new THREE.Mesh(new THREE.RingGeometry(r, r + .16, 90), new THREE.MeshBasicMaterial({ color: parseInt(cols[i].slice(1), 16), transparent: true, opacity: Math.max(.34 - i * .04, .12), side: THREE.DoubleSide }));
+      } else {
+        mesh = new THREE.Mesh(new THREE.TorusGeometry(r + .08, .007, 6, 140), new THREE.MeshBasicMaterial({ color: parseInt(cols[i].slice(1), 16), transparent: true, opacity: Math.max(.55 - i * .06, .2) }));
+      }
+      mesh.rotation.x = Math.PI / 2;
+      P.rg.add(mesh);
+    }
+  }
+
+  // Re-texture the Home planet (seed = 5 + 9*planetIndex) + rebuild rings; called when planet or palette changes.
+  _applyPlanet(S) {
+    const idx = this.state[S.v].planet;
+    S.curP = idx;
+    if (S.P.planet && S.P.planet.material) {
+      const old = S.P.planet.material.map;
+      S.P.planet.material.map = this._gasTex(5 + idx * 9 + (S.v === 'b' ? 3 : 0));
+      S.P.planet.material.needsUpdate = true;
+      if (old) old.dispose();
+    }
+    if (S.P.moons) S.P.moons.forEach((mn, i) => { mn.mesh.visible = i < idx; });
+    this._buildRings(S);
+  }
+
+  // Low-poly food items for the Fuel macro orbits, ~.24 units across at scale 1 (natural food colors,
+  // deliberately NOT palette-recolored). drumstick+milk ride the protein ring (opposite phases), apple = carbs,
+  // swiss cheese wedge = fat. hud variant renders wireframe pink. Scaled by macro % in the loop like the old moons.
+  _mkFood(kind, hud) {
+    const g = new THREE.Group();
+    const mk = (c, o) => hud
+      ? new THREE.MeshBasicMaterial({ color: 0xf0abfc, wireframe: true, transparent: true, opacity: .85 })
+      : new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: .6, metalness: .02, flatShading: true }, o));
+    const add = (mesh, x, y, z) => { mesh.position.set(x || 0, y || 0, z || 0); g.add(mesh); return mesh; };
+    if (kind === 'drumstick') {                                                              // cartoon chicken leg, bone down
+      const meat = mk(0xa9622f, { roughness: .7 });
+      const thigh = add(new THREE.Mesh(new THREE.SphereGeometry(.09, 9, 7), meat), 0, .028, 0);
+      thigh.scale.set(.95, 1.15, .9);                                                        // plump end up
+      add(new THREE.Mesh(new THREE.SphereGeometry(.055, 8, 6), meat), 0, -.052, 0);          // taper down
+      const bone = mk(0xf4efe6, { roughness: .5 });
+      add(new THREE.Mesh(new THREE.CylinderGeometry(.018, .015, .08, 6), bone), 0, -.12, 0); // bone shaft
+      add(new THREE.Mesh(new THREE.SphereGeometry(.022, 7, 6), bone), -.016, -.162, 0);      // knuckle L
+      add(new THREE.Mesh(new THREE.SphereGeometry(.022, 7, 6), bone), .016, -.162, 0);       // knuckle R
+      g.rotation.z = .38; g.rotation.x = .12;                                                // slight lean as it spins
+    } else if (kind === 'milk') {
+      const jug = mk(0xf2eef8, { roughness: .45 });
+      add(new THREE.Mesh(new THREE.BoxGeometry(.13, .13, .105), jug), 0, -.014, 0);          // gallon body (wide)
+      add(new THREE.Mesh(new THREE.BoxGeometry(.072, .034, .072), jug), 0, .068, 0);         // shoulder
+      add(new THREE.Mesh(new THREE.CylinderGeometry(.026, .026, .02, 8), mk(0x5b8dd6, { roughness: .4 })), 0, .094, 0); // cap
+      add(new THREE.Mesh(new THREE.BoxGeometry(.022, .05, .022), jug), .08, .012, 0);        // handle
+    } else if (kind === 'apple') {
+      const body = add(new THREE.Mesh(new THREE.SphereGeometry(.098, 10, 8), mk(0xb83a30)));
+      body.scale.y = .92;
+      add(new THREE.Mesh(new THREE.CylinderGeometry(.008, .012, .05, 5), mk(0x6b4a2b, { roughness: .9 })), 0, .105, 0); // stem
+      const leaf = add(new THREE.Mesh(new THREE.SphereGeometry(.024, 6, 4), mk(0x4f8a3d, { roughness: .7 })), .03, .112, 0);
+      leaf.scale.set(1.5, .4, .8);
+    } else {                                                                                 // swiss cheese wedge (1.4x)
+      const sh2 = new THREE.Shape();                                                         // triangular slab profile
+      sh2.moveTo(-.1, -.061); sh2.lineTo(.199, -.061); sh2.lineTo(-.1, .123);
+      sh2.closePath();
+      [[-.019, -.004, .0345], [.0785, -.021, .0242], [-.042, .048, .0219]].forEach(h => {    // real holes punched
+        const p = new THREE.Path();                                                          // through the wedge
+        p.absarc(h[0], h[1], h[2], 0, Math.PI * 2, true);
+        sh2.holes.push(p);
+      });
+      const geo = new THREE.ExtrudeGeometry(sh2, { depth: .126, bevelEnabled: true, bevelThickness: .012, bevelSize: .012, bevelSegments: 1 });
+      geo.translate(0, 0, -.063);
+      const wedge = add(new THREE.Mesh(geo, mk(0xe0a92f, { roughness: .55 })));
+      wedge.rotation.x = -.4; wedge.rotation.y = .5;                                         // tilt so the holey face shows
+      wedge.scale.setScalar(.87);                                                            // slightly smaller
+      const holeMat = mk(0x9c7218, { roughness: .85 });                                      // darker interior; flush discs
+      const disc = (r, x, y, z, rz) => {                                                     // read as holes on side faces
+        const d = new THREE.Mesh(new THREE.CylinderGeometry(r, r, .014, 10), holeMat);
+        d.position.set(x, y, z); d.rotation.z = rz || 0;
+        wedge.add(d);
+      };
+      disc(.021, .05, -.072, .028);                                                          // bottom face
+      disc(.016, -.04, -.072, -.032);
+      disc(.018, -.11, .015, .028, Math.PI / 2);                                             // back face
+      disc(.022, -.11, -.028, -.03, Math.PI / 2);
+      disc(.02, .053, .037, .02, -.552);                                                     // slanted top face
+      disc(.017, -.044, .097, -.03, -.552);
+    }
+    return g;
+  }
+
+  // Original low-poly capital ship for the Home orbit — clone-era wedge-cruiser archetype (researched
+  // class traits: double-wedge stepped hull ~2:1 length:beam, forked bow opening to a dorsal flight
+  // deck, twin raised T-shaped bridge towers — narrow stalk, wide panoramic bridge bar, flat scanner
+  // cap — red bow trim), NOT the actual Star Wars model. Light top/bottom faces + dark chamfered rim
+  // via extrude material index 1; glow trench + protruding thruster bells. Nose points along +z; the
+  // loop yaws it to face travel. Moons join per _applyPlanet.
+  _mkCruiser(hud) {
+    const g = new THREE.Group();
+    const mk = (c, o) => hud
+      ? new THREE.MeshBasicMaterial({ color: 0xf0abfc, wireframe: true, transparent: true, opacity: .8 })
+      : new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: .5, metalness: .25, flatShading: true }, o));
+    const hull = mk(0xd9d2ea);
+    const dark = mk(0x6f6390, { roughness: .65 });
+    const glow = mk(0x2a2244, { emissive: 0xf0abfc, emissiveIntensity: 1, roughness: .3 });
+    const faces = hud ? hull : [hull, dark];
+    const ext = (pts, d, b) => {
+      const s = new THREE.Shape();
+      s.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length; i++) s.lineTo(pts[i][0], pts[i][1]);
+      s.closePath();
+      const geo = new THREE.ExtrudeGeometry(s, { depth: d, bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelSegments: 1 });
+      geo.rotateX(-Math.PI / 2);                                                             // 2D (x,y) -> (x,-z): bow at +z
+      return geo;
+    };
+    const add = (mesh, x, y, z) => { mesh.position.set(x || 0, y || 0, z || 0); g.add(mesh); return mesh; };
+    add(new THREE.Mesh(ext([[0, -.14], [.03, -.26], [.062, -.135], [.108, .05], [.098, .17], [.05, .215], [0, .21], [-.05, .215], [-.098, .17], [-.108, .05], [-.062, -.135], [-.03, -.26]], .026, .012), faces)); // lower wedge, forked bow, ~2:1 length:beam
+    add(new THREE.Mesh(ext([[0, -.03], [.07, 0], [.088, .15], [.045, .195], [0, .19], [-.045, .195], [-.088, .15], [-.07, 0]], .016, .008), faces), 0, .03, 0); // raised aft wedge (double-wedge step)
+    add(new THREE.Mesh(new THREE.BoxGeometry(.016, .005, .2), glow), 0, .057, .02);          // dorsal flight-deck trench
+    const red = mk(0x9c3a38, { roughness: .6 });
+    add(new THREE.Mesh(new THREE.BoxGeometry(.014, .005, .11), red), -.04, .04, .195).rotation.y = .15;  // bow stripe L
+    add(new THREE.Mesh(new THREE.BoxGeometry(.014, .005, .11), red), .04, .04, .195).rotation.y = -.15;  // bow stripe R
+    add(new THREE.Mesh(new THREE.BoxGeometry(.084, .012, .05), dark), 0, .06, -.14);         // tower platform
+    const towerT = (x) => {                                                                  // T-shaped bridge tower:
+      add(new THREE.Mesh(new THREE.BoxGeometry(.014, .034, .017), hull), x, .082, -.15);     // narrow stalk...
+      add(new THREE.Mesh(new THREE.BoxGeometry(.04, .012, .018), hull), x, .105, -.148);     // ...wide bridge bar on top
+      add(new THREE.Mesh(new THREE.BoxGeometry(.036, .005, .004), glow), x, .105, -.138);    // panoramic window strip
+      add(new THREE.Mesh(new THREE.BoxGeometry(.024, .0035, .012), dark), x, .1135, -.15);   // flat scanner cap
+    };
+    towerT(-.031); towerT(.031);
+    const thr = (r, x, z2) => {                                                              // protruding thruster:
+      const bell = new THREE.Mesh(new THREE.CylinderGeometry(r * .85, r * 1.15, .03, 8), dark); // nozzle bell housing
+      bell.rotation.x = Math.PI / 2; bell.position.set(x, .013, z2); g.add(bell);
+      const jet = new THREE.Mesh(new THREE.CylinderGeometry(r * .82, r * .82, .012, 8), glow);  // glowing exhaust disc
+      jet.rotation.x = Math.PI / 2; jet.position.set(x, .013, z2 - .018); g.add(jet);
+    };
+    thr(.018, 0, -.222); thr(.013, -.038, -.216); thr(.013, .038, -.216);                    // main engine bank
+    thr(.008, -.063, -.204); thr(.008, .063, -.204);
+    g.scale.setScalar(.9);
+    g.userData.glow = hud ? null : glow;
+    return g;
+  }
+
+  // Tiny astronaut assembled from flat-shaded primitives (capsules/spheres/boxes) so it reads as
+  // faceted low-poly like the asteroid. hud variant (screen 1d) renders it wireframe like its debris.
+  // Replaces the middle debris rock on Train; same orbit record shape, flagged astro:true.
+  _mkAstronaut(hud) {
+    const g = new THREE.Group();
+    const mk = (c, o) => hud
+      ? new THREE.MeshBasicMaterial({ color: 0x8b5cf6, wireframe: true, transparent: true, opacity: .75 })
+      : new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: .55, metalness: .05, flatShading: true }, o));
+    const suit = mk(0xe9e4f4);
+    const grey = mk(0x9d8fc4, { roughness: .8 });
+    const visor = mk(0x2b3f66, { roughness: .12, metalness: .85, emissive: 0x8b5cf6, emissiveIntensity: .4 });
+    const add = (geo, m, x, y, z, rx, ry, rz) => {
+      const mesh = new THREE.Mesh(geo, m);
+      mesh.position.set(x, y, z);
+      mesh.rotation.set(rx || 0, ry || 0, rz || 0);
+      g.add(mesh);
+      return mesh;
+    };
+    add(new THREE.CapsuleGeometry(.06, .09, 3, 8), suit, 0, 0, 0);                            // torso
+    add(new THREE.SphereGeometry(.07, 10, 8), suit, 0, .155, 0);                              // helmet
+    add(new THREE.SphereGeometry(.05, 10, 8), visor, 0, .152, .052).scale.z = .55;            // glass visor dome, proud of helmet
+    add(new THREE.BoxGeometry(.095, .115, .05), grey, 0, .02, -.075);                         // life-support pack
+    add(new THREE.BoxGeometry(.042, .028, .014), grey, 0, .032, .062);                        // chest panel
+    const aL = add(new THREE.CapsuleGeometry(.023, .075, 2, 6), suit, -.093, .06, .01, 0, 0, 1.05);      // arm L (raised)
+    const aR = add(new THREE.CapsuleGeometry(.023, .075, 2, 6), suit, .09, .005, .02, .3, 0, -.5);       // arm R (drifting)
+    const lL = add(new THREE.CapsuleGeometry(.027, .085, 2, 6), suit, -.035, -.155, .02, -.35, 0, .15);  // leg L
+    const lR = add(new THREE.CapsuleGeometry(.027, .085, 2, 6), suit, .038, -.158, -.015, .2, 0, -.12);  // leg R
+    const tg = new THREE.Group();                                                             // short broken tether,
+    tg.position.set(0, -.055, .058);                                                          // clipped at the chest front
+    const rope = mk(0xf59e0b, { emissive: 0xb45309, emissiveIntensity: .35, roughness: .6 }); // safety-orange rope
+    const clip = new THREE.Mesh(new THREE.TorusGeometry(.016, .006, 4, 6), grey);             // carabiner at the hip
+    tg.add(clip);
+    const curve = new THREE.CatmullRomCurve3([                                                // 1.5x longer, drifting
+      new THREE.Vector3(0, 0, 0),                                                             // out in front
+      new THREE.Vector3(-.05, -.08, .045),
+      new THREE.Vector3(-.08, -.17, .06),
+      new THREE.Vector3(-.045, -.26, .02),
+      new THREE.Vector3(.02, -.32, .06)
+    ]);
+    tg.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 16, .013, 5, false), rope));
+    const knot = new THREE.Mesh(new THREE.SphereGeometry(.019, 6, 5), rope);                  // frayed snapped end
+    knot.position.set(.02, -.32, .06); tg.add(knot);
+    g.add(tg);
+    g.scale.setScalar(.77);
+    g.userData.visor = hud ? null : visor;
+    g.userData.tether = tg;                                                                   // swayed in the debris loop
+    g.userData.limbs = [                                                                      // base poses; the loop adds
+      { m: aL, b: [0, 0, 1.05] }, { m: aR, b: [.3, 0, -.5] },                                 // flail wobble on impact
+      { m: lL, b: [-.35, 0, .15] }, { m: lR, b: [.2, 0, -.12] }
+    ];
+    return g;
+  }
+
+  // Builds one Three.js scene per screen ('home' | 'fuel' | 'train'):
+  //  home  - gas giant r1.12 (group scaled .62) + soft atmosphere shell + progression rings + cruiser orbit r2.5
+  //          (_mkCruiser, always present) + 5 pooled moons, i-th visible when planet level > i (Ember 0 ... Zenith 5).
+  //  fuel  - planet r.66 + 3 tilted macro orbits (radii 1.15/1.55/1.95, speeds .5/.36/.27 rad/s);
+  //          orbiters are low-poly foods (_mkFood): drumstick+milk = protein ring, apple = carbs, cheese = fat;
+  //          scale = base * (.78 + .5*macroPct) (+ pulse on quick-add), slow y-tumble.
+  //  train - icosahedron(subdiv 4) asteroid, vertices displaced by layered sines (see mk of geometry below);
+  //          emissive heat = .1 + 1.6*(doneSets/16); 2 orbiting debris rocks + tethered astronaut (_mkAstronaut)
+  //          who bumps the outer rock once a minute and flails (see debris loop).
+  // Lighting: ambient #9A8CC9 .6 + white directional 1.15 @(3,4,5) + secondary point light 1.3 @(-3.5,-2,3).
+  // 260-point starfield sphere behind each. SwiftUI: three SCNScenes with equivalent nodes/materials.
+  _makeScene(host, scEl, type, v) {
+    const w = host.clientWidth, h = host.clientHeight, hud = v === 'b';
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(w, h);
+    renderer.domElement.style.position = 'absolute';
+    renderer.domElement.style.top = '0';
+    renderer.domElement.style.left = '0';
+    host.appendChild(renderer.domElement);
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(42, w / h, .1, 60);
+    scene.add(new THREE.AmbientLight(0x9a8cc9, hud ? .5 : .6));
+    const key = new THREE.DirectionalLight(0xffffff, hud ? .9 : 1.15);
+    key.position.set(3, 4, 5); scene.add(key);
+    const fill = new THREE.PointLight(parseInt(this._pal().p2.slice(1), 16), hud ? .8 : 1.3, 30);
+    fill.position.set(-3.5, -2, 3); scene.add(fill);
+    const starGeo = new THREE.BufferGeometry();
+    const N = 260, arr = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) {
+      const r = 7 + Math.random() * 8, th = Math.random() * 6.2832, ph = Math.acos(2 * Math.random() - 1);
+      arr[i * 3] = r * Math.sin(ph) * Math.cos(th); arr[i * 3 + 1] = r * Math.sin(ph) * Math.sin(th); arr[i * 3 + 2] = r * Math.cos(ph);
+    }
+    starGeo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: hud ? 0xbfa9fc : 0xd9ccff, size: .06, transparent: true, opacity: .95 }));
+    scene.add(stars);
+    const grp = new THREE.Group();
+    grp.position.y = .18;
+    scene.add(grp);
+    const P = { stars, grp };
+    if (type === 'home') {
+      let planet;
+      if (!hud) {
+        planet = new THREE.Mesh(new THREE.SphereGeometry(1.12, 48, 48), new THREE.MeshStandardMaterial({ map: this._gasTex(3), roughness: .7, metalness: .05, emissive: 0x2b0b5e, emissiveIntensity: .3 }));
+        P.atmo = new THREE.Mesh(new THREE.SphereGeometry(1.36, 48, 48), new THREE.MeshBasicMaterial({ color: 0xa855f7, transparent: true, opacity: .13, side: THREE.BackSide }));
+        grp.add(P.atmo);
+      } else {
+        planet = new THREE.Mesh(new THREE.SphereGeometry(1.05, 40, 40), new THREE.MeshStandardMaterial({ map: this._gasTex(7), roughness: .75, metalness: .05, emissive: 0x1a0a3e, emissiveIntensity: .3 }));
+        P.wire = new THREE.Mesh(new THREE.IcosahedronGeometry(1.12, 2), new THREE.MeshBasicMaterial({ color: 0x8b5cf6, wireframe: true, transparent: true, opacity: .26 }));
+        grp.add(P.wire);
+      }
+      grp.add(planet); P.planet = planet;
+      const rg = new THREE.Group();
+      if (!hud) {
+        const r1 = new THREE.Mesh(new THREE.RingGeometry(1.55, 2.08, 90), new THREE.MeshBasicMaterial({ color: 0xe879f9, transparent: true, opacity: .3, side: THREE.DoubleSide }));
+        const r2 = new THREE.Mesh(new THREE.RingGeometry(2.2, 2.27, 90), new THREE.MeshBasicMaterial({ color: 0xf0abfc, transparent: true, opacity: .16, side: THREE.DoubleSide }));
+        r1.rotation.x = Math.PI / 2; r2.rotation.x = Math.PI / 2;
+        rg.add(r1); rg.add(r2);
+      } else {
+        const r1 = new THREE.Mesh(new THREE.TorusGeometry(1.8, .008, 6, 140), new THREE.MeshBasicMaterial({ color: 0xe879f9, transparent: true, opacity: .6 }));
+        const r2 = new THREE.Mesh(new THREE.TorusGeometry(2.15, .005, 6, 140), new THREE.MeshBasicMaterial({ color: 0xa78bfa, transparent: true, opacity: .35 }));
+        r1.rotation.x = Math.PI / 2; r2.rotation.x = Math.PI / 2;
+        rg.add(r1); rg.add(r2);
+      }
+      grp.add(rg); P.rg = rg;
+      P.ship = this._mkCruiser(hud);
+      grp.add(P.ship);
+      P.shipGlow = P.ship.userData.glow;
+      P.moons = [0, 1, 2, 3, 4].map(i => {
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(.062 + i * .009, 18, 18), hud ? new THREE.MeshBasicMaterial({ color: 0xf0abfc }) : new THREE.MeshStandardMaterial({ color: 0xf0abfc, emissive: 0xd946ef, emissiveIntensity: .5 }));
+        mesh.visible = false;
+        grp.add(mesh);
+        return { mesh, r: 2.3 + (i % 3) * .22, sp: .34 + i * .055, ph: 1.1 + i * 1.35 };
+      });
+      grp.scale.setScalar(.62);
+      camera.position.set(0, .3, 4.6);
+    } else if (type === 'fuel') {
+      let planet;
+      if (!hud) {
+        planet = new THREE.Mesh(new THREE.SphereGeometry(.66, 40, 40), new THREE.MeshStandardMaterial({ map: this._gasTex(11), roughness: .7, metalness: .05, emissive: 0x2a0c58, emissiveIntensity: .3 }));
+      } else {
+        planet = new THREE.Mesh(new THREE.SphereGeometry(.62, 36, 36), new THREE.MeshStandardMaterial({ map: this._gasTex(19), roughness: .75, metalness: .05, emissive: 0x1a0a3e, emissiveIntensity: .3 }));
+        P.wire = new THREE.Mesh(new THREE.IcosahedronGeometry(.68, 2), new THREE.MeshBasicMaterial({ color: 0x8b5cf6, wireframe: true, transparent: true, opacity: .3 }));
+        grp.add(P.wire);
+      }
+      grp.add(planet); P.planet = planet;
+      const FP = this._pal(), h2i = h => parseInt(h.slice(1), 16);
+      const cols = hud ? [h2i(FP.secL), h2i(FP.priL), h2i(FP.priLL)] : [h2i(FP.secL), h2i(FP.p1), h2i(FP.p3)];
+      const radii = [1.15, 1.55, 1.95], speeds = [.5, .36, .27], sizes = [.13, .16, .105];
+      P.orbits = radii.map((r, i) => {
+        const sub = new THREE.Group();
+        sub.rotation.z = [0, .3, -.25][i];
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(r, hud ? .007 : .0055, 6, 130), new THREE.MeshBasicMaterial({ color: cols[i], transparent: true, opacity: hud ? .55 : .4 }));
+        ring.rotation.x = Math.PI / 2;
+        sub.add(ring);
+        const moon = this._mkFood(['drumstick', 'apple', 'cheese'][i], hud);
+        moon.scale.setScalar(sizes[i] / .12);
+        sub.add(moon);
+        let moon2 = null;
+        if (i === 0) { moon2 = this._mkFood('milk', hud); moon2.scale.setScalar(sizes[i] / .12); sub.add(moon2); }
+        grp.add(sub);
+        return { sub, moon, moon2, base: sizes[i] / .12, r, speed: speeds[i], phase: i * 2.1 };
+      });
+      camera.position.set(0, 1.6, 4);
+    } else {
+      const geo = new THREE.IcosahedronGeometry(1, hud ? 1 : 4);
+      const pos = geo.attributes.position, vv = new THREE.Vector3();
+      for (let i = 0; i < pos.count; i++) {
+        vv.fromBufferAttribute(pos, i);
+        const m = 1 + .17 * Math.sin(vv.x * 3.1) * Math.sin(vv.y * 2.7 + 1.7) * Math.sin(vv.z * 3.7 + .6) + .05 * Math.sin(vv.y * 8 + vv.x * 5);
+        vv.normalize().multiplyScalar(m);
+        pos.setXYZ(i, vv.x, vv.y, vv.z);
+      }
+      geo.computeVertexNormals();
+      const mat = new THREE.MeshStandardMaterial({ color: hud ? 0x2a2244 : 0x5b4d7d, roughness: .85, metalness: .1, flatShading: true, emissive: parseInt(this._pal().p2.slice(1), 16), emissiveIntensity: .1 });
+      const rock = new THREE.Mesh(geo, mat);
+      grp.add(rock); P.rock = rock; P.mat = mat;
+      if (hud) {
+        P.wire = new THREE.LineSegments(new THREE.WireframeGeometry(geo), new THREE.LineBasicMaterial({ color: 0xa78bfa, transparent: true, opacity: .35 }));
+        rock.add(P.wire);
+      }
+      P.debris = [0, 1, 2].map(i => {
+        if (i === 1) {
+          const d = this._mkAstronaut(hud);
+          grp.add(d);
+          P.visorMat = d.userData.visor;
+          return { d, r: 1.7 + i * .35, sp: .5 - i * .12, ph: i * 2.2, astro: true };
+        }
+        const d = new THREE.Mesh(new THREE.IcosahedronGeometry(.09 + i * .025, 0), hud ? new THREE.MeshBasicMaterial({ color: 0x8b5cf6, wireframe: true }) : new THREE.MeshStandardMaterial({ color: 0x8b78b8, roughness: .9, flatShading: true }));
+        grp.add(d);
+        return { d, r: 1.7 + i * .35, sp: .5 - i * .12, ph: i * 2.2 };
+      });
+      grp.scale.setScalar(.78);
+      camera.position.set(0, .35, 4.5);
+    }
+    const S = { renderer, scene, camera, P, type, v, host, scroll: 0, target: 0, vis: true };
+    if (scEl) scEl.addEventListener('scroll', () => { const m = scEl.scrollHeight - scEl.clientHeight; S.target = m > 0 ? scEl.scrollTop / m : 0; }, { passive: true });
+    if (typeof IntersectionObserver !== 'undefined') new IntersectionObserver(en => { S.vis = en[0].isIntersecting; }).observe(host);
+    this._scenes.push(S);
+    this._csig = null;
+  }
+
+  // Single rAF driver: smooths scroll (8%/frame), detects palette changes, then per scene:
+  //  home  - planet spin t*.14 + scroll*2.6; ring tilt eases .42->.08; camera z 4.6->4.05, y rises with scroll.
+  //  fuel  - group yaw t*.09 + scroll*1.5; camera descends y1.6->0.2 (top-down -> edge-on).
+  //  train - asteroid spin + camera orbits azimuth = scroll*2.4 at r4.5.
+  // Hero host div also parallax-translates up to -95px. Offscreen scenes are skipped (visibility flags).
+  _loop() {
+    let last = performance.now();
+    const tick = (now) => {
+      if (this._dead) return;
+      this._raf = requestAnimationFrame(tick);
+      const dt = Math.min((now - last) / 1000, .05);
+      last = now;
+      const spd = +(this.props.motionSpeed ?? 1);
+      const par = this.props.parallax ?? true;
+      const ships = this.props.ships ?? true;
+      this._t += dt * spd;
+      const t = this._t;
+      this._pulse.a *= .95; this._pulse.b *= .95;
+      const csig = (this.props.palette || []).join('|');
+      if (csig !== this._csig) { this._csig = csig; this._recolorScenes(); }
+      for (let i = 0; i < this._bgs.length; i++) if (this._bgs[i].vis) this._drawBg(this._bgs[i], t, dt * spd, ships);
+      for (let i = 0; i < this._scenes.length; i++) {
+        const S = this._scenes[i];
+        if (!S.vis) continue;
+        S.scroll += (S.target - S.scroll) * .08;
+        const s = S.scroll, P = S.P, L = this._live[S.v] || {};
+        S.host.style.transform = par ? 'translateY(' + (-s * 95).toFixed(1) + 'px)' : 'none';
+        P.stars.rotation.y = t * .012;
+        if (S.type === 'home') {
+          const psig = (this.props.palette || []).join('|');
+          if (S.curP !== this.state[S.v].planet || S.psig !== psig) { S.psig = psig; this._applyPlanet(S); }
+          P.planet.rotation.y = t * .14 + s * 2.6;
+          P.rg.rotation.x = .42 - s * .34;
+          P.rg.rotation.z = .16 + s * .3;
+          const a = t * .45;
+          P.ship.position.set(Math.cos(a) * 2.5, Math.sin(a * 1.4) * .34, Math.sin(a) * 2.5);
+          P.ship.rotation.set(.1 + Math.sin(t * .6) * .05, -a, Math.sin(t * .8) * .1);
+          for (let j = 0; j < P.moons.length; j++) {
+            const mn = P.moons[j];
+            if (!mn.mesh.visible) continue;
+            const ma = t * mn.sp + mn.ph;
+            mn.mesh.position.set(Math.cos(ma) * mn.r, Math.sin(ma * 1.3) * .3, Math.sin(ma) * mn.r);
+          }
+          S.camera.position.set(0, .3 + s * .35, 4.6 - s * .55);
+          S.camera.lookAt(0, .12, 0);
+        } else if (S.type === 'fuel') {
+          P.grp.rotation.y = t * .09 + s * 1.5;
+          P.planet.rotation.y = t * .28;
+          const pcts = [L.pP || 0, L.pC || 0, L.pF || 0];
+          const pulse = this._pulse[S.v] || 0;
+          for (let j = 0; j < P.orbits.length; j++) {
+            const o = P.orbits[j];
+            const a = t * o.speed + o.phase;
+            const fsc = o.base * (.78 + .5 * pcts[j]) * (1 + pulse * .4);
+            o.moon.position.set(Math.cos(a) * o.r, 0, Math.sin(a) * o.r);
+            o.moon.scale.setScalar(fsc);
+            o.moon.rotation.y = t * .55 + j * 2;
+            if (o.moon2) {
+              o.moon2.position.set(Math.cos(a + Math.PI) * o.r, 0, Math.sin(a + Math.PI) * o.r);
+              o.moon2.scale.setScalar(fsc);
+              o.moon2.rotation.y = t * .55 + 3;
+            }
+          }
+          S.camera.position.set(Math.sin(t * .2) * .12, 1.6 - s * 1.4, 4);
+          S.camera.lookAt(0, 0, 0);
+        } else {
+          P.rock.rotation.y = t * .3 + s * 3.2;
+          P.rock.rotation.x = .15 + s * .5;
+          P.rock.rotation.z = Math.sin(t * .1) * .08;
+          const heat = L.heat || 0;
+          P.mat.emissive.set(this._pal().p2);
+          P.mat.emissiveIntensity += ((.1 + heat * 1.6) - P.mat.emissiveIntensity) * .06;
+          for (let j = 0; j < P.debris.length; j++) {
+            const dd = P.debris[j];
+            const a = t * dd.sp + dd.ph;
+            const px = Math.cos(a) * dd.r, py = Math.sin(a * .9) * .4, pz = Math.sin(a) * dd.r;
+            if (dd.astro) {
+              // Once a minute (first right after load): drift into the outer rock, flail arms/legs a few seconds, settle back.
+              const rk = P.debris[2], ra = t * rk.sp + rk.ph;
+              const rx = Math.cos(ra) * rk.r, ry = Math.sin(ra * .9) * .4, rz = Math.sin(ra) * rk.r;
+              const cyc = t % 60, sm = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+              const dxr = rx - px, dyr = ry - py, dzr = rz - pz;
+              const dist = Math.sqrt(dxr * dxr + dyr * dyr + dzr * dzr) || 1;
+              const kc = Math.max(0, 1 - .32 / dist);                       // stop at the rock's surface
+              const k = cyc < 2.2 ? kc * sm(cyc / 2.2) : cyc < 5.4 ? kc * (1 - sm((cyc - 2.2) / 3.2)) : 0;
+              let X = px + dxr * k, Y = py + dyr * k, Z = pz + dzr * k;
+              const r0 = P.debris[0], a0 = t * r0.sp + r0.ph;               // hard no-clip clamp: pushed out of
+              const solids = [                                              // the main asteroid + both rocks
+                [0, 0, 0, 1.32],
+                [Math.cos(a0) * r0.r, Math.sin(a0 * .9) * .4, Math.sin(a0) * r0.r, .27],
+                [rx, ry, rz, .32]
+              ];
+              for (const so of solids) {
+                const cx = X - so[0], cy = Y - so[1], cz = Z - so[2];
+                const cl = Math.sqrt(cx * cx + cy * cy + cz * cz) || .001;
+                if (cl < so[3]) { const f = so[3] / cl; X = so[0] + cx * f; Y = so[1] + cy * f; Z = so[2] + cz * f; }
+              }
+              dd.d.position.set(X, Y, Z);
+              const amp = cyc < 2.2 || cyc >= 5.4 ? 0 : Math.min(1, (cyc - 2.2) * 6) * (1 - (cyc - 2.2) / 3.2);
+              dd.d.userData.limbs.forEach((lb, li) => lb.m.rotation.set(
+                lb.b[0] + Math.cos(t * 11 + li * 2.1) * .8 * amp, lb.b[1],
+                lb.b[2] + Math.sin(t * 13 + li * 1.7) * amp));
+              const tg = dd.d.userData.tether;
+              tg.rotation.x = Math.sin(t * 1.2) * .22 + Math.sin(t * 9) * .5 * amp;
+              tg.rotation.z = Math.cos(t * .9) * .18 + Math.cos(t * 8) * .45 * amp;
+              dd.d.rotation.set(Math.sin(t * .5) * .35 + Math.sin(t * 4.7) * .55 * amp, -a + Math.PI, Math.sin(t * .37 + 1) * .28 + Math.cos(t * 4.1) * .55 * amp);
+            } else {
+              dd.d.position.set(px, py, pz);
+              dd.d.rotation.y = t * .8; dd.d.rotation.x = t * .5;
+            }
+          }
+          const az = s * 2.4;
+          S.camera.position.set(Math.sin(az) * 4.5, .35 + s * .55, Math.cos(az) * 4.5);
+          S.camera.lookAt(0, .1, 0);
+        }
+        S.renderer.render(S.scene, S.camera);
+      }
+    };
+    this._raf = requestAnimationFrame(tick);
+  }
+}
+</script>
+</body>
+</html>

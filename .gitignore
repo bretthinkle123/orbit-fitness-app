@@ -216,3 +216,32 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+.pipeline/
+*.pyc
+.venv/
+coverage.json
+*.db
+*.sqlite
+*.sqlite3
+*.tfstate
+*.tfvars
+infra/backend.hcl
+infra/.terraform/
+node_modules/
+coverage/
+.stryker-tmp/
+*.tsbuildinfo
+npm-debug.log*
+reports/
+scratch_*
+load/results.json
+
+# iOS / Xcode (ios/Orbit/project.yml is the checked-in source of truth;
+# Orbit.xcodeproj is generated via `xcodegen generate` on the Mac — see
+# ios/Orbit/README.md)
+ios/Orbit/Orbit.xcodeproj/
+ios/**/xcuserdata/
+ios/**/*.xcworkspace/xcuserdata/
+ios/**/DerivedData/
+ios/**/.build/
+ios/**/*.xcuserstate

@@ -1,0 +1,23 @@
+# Trivy ignore file — the committed, human-reviewable waiver channel CI honors
+# (.github/workflows/pipeline-ci.yml runs `trivy fs --severity HIGH,CRITICAL
+# --exit-code 1` and reads ONLY this file). Every entry names its triage.
+
+# AWS-0104 — "security group rule allows unrestricted egress to any IP address"
+# (infra/modules/network/main.tf: the app, db and redis security groups).
+#
+# Triage: ACCEPTED RISK, deliberately deferred — not a false positive.
+# This run ships the data-security baseline only; no compute or load balancer
+# is provisioned yet, so there is no NAT gateway / VPC-endpoint topology to
+# narrow egress against. Narrowing it precisely is a compute-topology decision,
+# recorded in plan.md ("Accepted risks / out of scope": compute-topology cloud
+# threats deferred) and carried forward as a named work item in
+# plans/01-production-deploy-path.md.
+#
+# INGRESS — the direction that actually admits an attacker — is fully
+# restricted: db/redis accept traffic only from the app security group on 5432
+# / 6379, never 0.0.0.0/0, and the VPC's default security group is locked down.
+#
+# The same three rules carry matching `#checkov:skip=CKV_AWS_382` comments with
+# the identical rationale, so both IaC scanners record the same accepted risk.
+# Re-evaluate when compute lands; this entry should be REMOVED then.
+AWS-0104
