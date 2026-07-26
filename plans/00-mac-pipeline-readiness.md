@@ -4,9 +4,10 @@ _Audience: a fresh Claude Code session on the operator's MacBook Air (M2), with 
 context. Your job: verify this Mac can run the Orbit pipeline end-to-end, FIX what you
 safely can, and end with an explicit verdict. The operator will say something like
 "read plans/00-mac-pipeline-readiness.md and tell me if this machine is ready" — this
-file is the entire brief. (Runbook v2 — adversarially audited 2026-07-24 against the
-actual engine scripts; the BSD/GNU section below reflects grep-verified reality, not
-folklore.)_
+file is the entire brief. (Runbook v3, updated 2026-07-26: greenfield is MERGED to main
+— Phase 5 is now actionable; Claude Code Desktop simulator workflow added. v2 was
+adversarially audited 2026-07-24 against the actual engine scripts; the BSD/GNU section
+below reflects grep-verified reality, not folklore.)_
 
 ## The verdict you must produce (contract)
 
@@ -39,9 +40,11 @@ it — and (b) GNU-only flags or commands missing from stock macOS (`stat -c`,
 `sha256sum`, `timeout`, `date -d`).**
 
 **WSL-side prerequisite (operator, before the first Mac readiness run):** push the
-engine repo from the WSL machine — at audit time `~/repos/claude-agentic-workflow` was
-2 commits ahead of origin/main with 1 untracked file; a Mac clone of origin today gets
-a stale engine.
+engine repo from the WSL machine — as of 2026-07-26 `~/repos/claude-agentic-workflow`
+is 2 commits ahead of origin/main AND holds the untracked greenfield run-evidence
+(`examples/orbit-fitness-app/run-evidence/greenfield/` — 21 transcripts + sha256
+manifest, preserved at closeout). Commit the evidence and push both; a Mac clone of
+origin today gets a stale engine and no run evidence.
 
 ## Fix policy (what you may do without asking)
 
@@ -68,6 +71,7 @@ a stale engine.
 | Docker Desktop | `docker info` | Operator installs Docker Desktop for Mac (Apple silicon) and launches it once |
 | Homebrew | `command -v brew` | Operator installs from https://brew.sh (needs sudo once) |
 | GitHub auth | `gh auth status` | Operator runs `gh auth login` (browser flow) |
+| Claude Code Desktop (macOS app, v1.24+) | app installed + version check in its UI | Operator installs — its live iOS-Simulator pane (public beta July 2026; **Pro/Max/Team plans**) is the preferred Phase-5 driver; local sessions only. Optional alternative: Xcode 26.3+ has native Claude agent integration |
 
 Environment notes: Rosetta is NOT required (every tool and Docker image named here
 ships arm64). If this is the 8 GB Air: Docker Desktop + Xcode + a booted Simulator
@@ -139,10 +143,10 @@ while doing Simulator-heavy work where possible, and expect slowness, not failur
 
 ## Phase 3 — functional probes (prove it, don't assume it)
 
-1. Docker real work: `docker run --rm hello-world`; pull the images pipeline stages
-   use: `docker pull postgres:16-alpine` (**likely tag — reconfirm against the app's
-   testcontainers config once the code exists; the plan pins no Postgres version**),
-   `docker pull redis:7-alpine`, `docker pull grafana/k6`. All are arm64-native.
+1. Docker real work: `docker run --rm hello-world`; pull the images the suite uses
+   (confirmed against tests/conftest.py in the merged code): `docker pull
+   postgres:16-alpine`, `docker pull redis:7-alpine`, `docker pull grafana/k6`.
+   All are arm64-native.
 2. Firebase Auth emulator boots: in a scratch dir, `echo '{}' > firebase.json` (guards
    against CLI versions that want a config present), then `firebase emulators:start
    --only auth --project demo-orbit` → wait for "All emulators ready", then kill it.
@@ -155,8 +159,7 @@ while doing Simulator-heavy work where possible, and expect slowness, not failur
 
 ## Phase 4 — app repo state (rules that prevent self-inflicted wounds)
 
-- Clone the app repo fresh (ask the operator for the URL/transfer if no GitHub remote
-  exists yet). **`.pipeline/` is gitignored and does NOT travel with the clone — this is
+- Clone the app repo fresh: `git clone https://github.com/bretthinkle123/orbit-fitness-app`. **`.pipeline/` is gitignored and does NOT travel with the clone — this is
   by design.** For a new run on this Mac: `bash
   ~/.claude/pipeline-templates/bootstrap-project.sh` from the repo root re-creates it.
 - **Never copy `.pipeline/` (especially `*-approved` markers) from the WSL machine.**
@@ -171,15 +174,45 @@ while doing Simulator-heavy work where possible, and expect slowness, not failur
 
 ## Phase 5 — post-greenfield iOS verification (only once greenfield has merged)
 
-1. Open `ios/Orbit/Orbit.xcodeproj`; build for an iPhone simulator.
-2. Run the Swift Testing/XCTest unit suites and snapshot tests.
-3. Start the backend locally (uvicorn + Docker Postgres/Redis + auth emulator), point
-   the app's API base URL at it, and run the XCUITest smoke:
-   register → sign in → quick-add food → toggle sets → log weight → switch palette/units
-   → delete account. This is AC27's real execution — the reduced-assurance closure the
-   Linux pipeline could not perform.
-4. Report any failure as a finding against the app (route to a debugging run), not
-   something to patch ad-hoc on the Mac.
+_Tooling note (July 2026): Claude Code **Desktop** on macOS (v1.24+, public beta) can
+build/run iOS apps with a live Simulator pane in-session — prefer it for this phase
+over hand-driving xcodebuild/simctl (local sessions only; requires Xcode + an iOS
+platform installed, i.e. Phase 0 complete). Xcode 26.3+ also has native Claude agent
+integration as an alternative. Neither exists on Linux/WSL — Apple licenses
+Xcode/Simulator to macOS only, which is why this phase lives on the Mac at all._
+
+_Greenfield merged to main 2026-07-26 (PR #1) — this phase is live. Clone from main.
+Note: the repo ships `ios/Orbit/project.yml` (XcodeGen), NOT a checked-in .xcodeproj —
+a documented T11 deviation. Generate first: `brew install xcodegen && cd ios/Orbit &&
+xcodegen generate`. Fonts: complete `Resources/Fonts/FONTS-TODO.md` (7 OFL .ttf files +
+URLs listed there) or accept the SF-substitute fallback the app already handles._
+
+**Preferred path — Claude Code Desktop (v1.24+ simulator pane):**
+1. Open Claude Code Desktop on the cloned repo; start the backend stack first
+   (uvicorn + Docker Postgres/Redis + `firebase emulators:start --only auth`)
+   or ask the session to do it. **Port trap:** the committed Info.plist default is
+   `http://localhost:8001` (a WSL-host workaround that shipped as the default), so
+   either run uvicorn on 8001 or set the override below — a mismatch looks like
+   "backend down" and would file a false finding.
+2. Ask it to generate the Xcode project (xcodegen), build Orbit for an iPhone
+   simulator, and run it with BOTH launch-environment variables set (scheme env vars
+   in the fallback path): `OrbitAPIBaseURL` (the local backend) and
+   `OrbitFirebaseAuthEmulatorHost` (the auth emulator — without it register/sign-in
+   bypasses the local emulator and the walk fails at step 1). Both are documented at
+   the top of Tests/SmokeUITests.swift.
+3. Walk AC27 live in the simulator pane: register → sign in → quick-add food → toggle
+   sets (score ticks, Body glows) → log weight → switch palette/units (persists across
+   relaunch) → delete account (cascades, lands on sign-in). Then run the authored
+   suites: Swift Testing units, snapshot tests (first run records baselines), and the
+   XCUITest smoke + accessibility suites.
+
+**Fallback path (no Desktop):** same steps hand-driven — `xcodegen generate`, open in
+Xcode, build/run on a simulator, `xcodebuild test` for the suites.
+
+**Either path:** this is AC27's real execution — the reduced-assurance closure the
+Linux pipeline could not perform. Report any failure as a finding against the app
+(route to a debugging run on WSL per the pipeline), not something to patch ad-hoc on
+the Mac; append the outcome to this file's Verification log.
 
 ## Verification log
 
