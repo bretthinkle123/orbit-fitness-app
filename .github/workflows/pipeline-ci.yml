@@ -49,6 +49,12 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # Exact-pin the Firebase CLI (same posture as our exact-pinned Python deps), matched to
+      # the version the authoring host runs so CI and local agree on emulator behaviour.
+      # Single source of truth for BOTH the install below and the emulator cache key — bumping
+      # it here invalidates the cache automatically instead of serving a stale JAR.
+      FIREBASE_TOOLS_VERSION: 15.18.0
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Placeholder guard (ledger M4-1 — a green job with live placeholders is vacuous)
@@ -75,25 +81,56 @@ jobs:
             exit 1
           fi
       - name: Install dependencies (from lockfile)
-        # CONTRACT (M4P-9): the install command must make the project package importable
-        # from a SUBPROCESS spawned anywhere in the repo — poetry installs into the CI
-        # runner's system interpreter (virtualenvs.create=false) rather than a per-cwd
-        # venv, so `import orbit` resolves regardless of the subprocess's working directory.
+        # CONTRACT (M4P-9): the install must make the project package importable from a
+        # SUBPROCESS spawned anywhere in the repo. `poetry install` installs the root
+        # project (src/orbit) into the venv, so `import orbit` resolves regardless of the
+        # subprocess's working directory — the contract holds via the venv, not via cwd.
+        #
+        # Poetry manages its OWN venv here — do NOT set `virtualenvs.create false`.
+        # That config made poetry install into the runner's SYSTEM interpreter, where pip
+        # then had to UNINSTALL ubuntu-latest's pre-installed root-owned botocore (a
+        # transitive dep of our pinned boto3) and died with
+        # `PermissionError: [Errno 13] Permission denied: 'configloader.py'` →
+        # "Cannot install botocore." The job is not root and must never fight the runner
+        # image's system site-packages. Every later step that needs project deps therefore
+        # runs through `poetry run` (see Build / Test below) — keep that consistent.
         run: |
           pip install --no-cache-dir poetry==2.4.1
-          poetry config virtualenvs.create false
           poetry install --no-interaction --no-ansi
       - name: Build
         # No compiled-artifact build step for a direct-process Python service; "build"
         # here is a byte-compile pass so a syntax error fails fast, before the test step.
-        run: python -m compileall -q src
+        run: poetry run python -m compileall -q src
+      - name: Install Firebase CLI (the test suite boots the Auth emulator)
+        # tests/conftest.py's session-scoped `firebase_emulator` fixture shells out to
+        # `subprocess.Popen(["firebase", "emulators:start", "--only", "auth", ...])` to mint REAL
+        # tokens against a live emulator (no mocked auth guard). ubuntu-latest does NOT ship
+        # firebase-tools, so without this step the Test step dies immediately with
+        # `FileNotFoundError: [Errno 2] No such file or directory: 'firebase'`.
+        #
+        # The emulator's OTHER prerequisites need no step — they come from the runner image:
+        # Java (the Auth emulator is a JAR) and Docker (testcontainers Postgres/Redis) are both
+        # pre-installed on ubuntu-latest, as are node/npm. `alembic` — the only other binary the
+        # suite shells out to (tests/conftest.py, tests/integration/test_migrations.py) — is a
+        # project dependency, so `poetry run pytest` puts the venv's bin on PATH and the
+        # subprocess resolves it from there; it needs no global install.
+        run: npm install -g "firebase-tools@${FIREBASE_TOOLS_VERSION}"
+      - name: Cache Firebase emulator JARs
+        # `emulators:start` downloads the Auth emulator JAR into ~/.cache/firebase/emulators on
+        # first use; cache it so it isn't re-fetched on every run. Keyed on the pinned CLI
+        # version, so a bump invalidates the entry rather than restoring a stale JAR. Purely an
+        # optimisation — a miss just re-downloads, it never fails the job.
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/firebase/emulators
+          key: ${{ runner.os }}-firebase-emulators-${{ env.FIREBASE_TOOLS_VERSION }}
       - name: Test with coverage (floor = the local gate's figure)
         # Coverage floor 80 mirrors CLAUDE.md's done-bar / test-conventions — the SAME
         # figure the local deploy gate rides, so CI and the local gate can't disagree.
         # Perf-marked tests are excluded here (timing is owned by local runs + the
         # load-campaign workflow against staging, per M4P-10 — this runner's timing is
         # not representative of the perf budget).
-        run: pytest --cov=src --cov-report=term-missing --cov-fail-under=80 -m "not perf"
+        run: poetry run pytest --cov=src --cov-report=term-missing --cov-fail-under=80 -m "not perf"
         # Branch coverage surfaces in the job summary; it is not itself a gate (mirrors
         # the local posture; see test-conventions).
 
@@ -112,14 +149,16 @@ jobs:
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Install dependencies (from lockfile)
+        # Same contract as build-and-test: poetry manages its own venv (no
+        # `virtualenvs.create false` — it collides with the runner's root-owned system
+        # packages), so the mutation step below runs through `poetry run`.
         run: |
           pip install --no-cache-dir poetry==2.4.1
-          poetry config virtualenvs.create false
           poetry install --no-interaction --no-ansi
       - name: Mutation testing (advisory — score to the summary, never fails the gate)
         run: |
           set +e
-          <MUTATION_CMD>   # e.g. mutmut run --paths-to-mutate <MUTATION_SCOPE>
+          poetry run <MUTATION_CMD>   # e.g. poetry run mutmut run --paths-to-mutate <MUTATION_SCOPE>
           echo "Mutation run complete (advisory; see output). This job never fails the merge gate." >> "$GITHUB_STEP_SUMMARY"
           exit 0
 
