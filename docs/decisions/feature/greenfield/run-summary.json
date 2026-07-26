@@ -1,13 +1,40 @@
 {
-  "generated_at": "2026-07-26T00:57:50Z",
+  "generated_at": "2026-07-26T02:49:16Z",
   "assurance": "reduced (swift adapters absent)",
   "stages": {
+    "debugging": {
+      "invocations": 2,
+      "attempts_max": 2,
+      "caps": 0,
+      "models": [
+        "opus"
+      ],
+      "last_status": "pass"
+    },
+    "deployment": {
+      "invocations": 3,
+      "attempts_max": 3,
+      "caps": 0,
+      "models": [
+        "sonnet"
+      ],
+      "last_status": "pass"
+    },
     "design-spec": {
       "invocations": 1,
       "attempts_max": 1,
       "caps": 0,
       "models": [
         "opus"
+      ],
+      "last_status": "pass"
+    },
+    "documentation": {
+      "invocations": 4,
+      "attempts_max": 4,
+      "caps": 1,
+      "models": [
+        "sonnet"
       ],
       "last_status": "pass"
     },
@@ -58,8 +85,8 @@
     }
   },
   "totals": {
-    "log_lines": 49,
-    "capped_lines": 20,
+    "log_lines": 58,
+    "capped_lines": 21,
     "loop_cap_events": 0,
     "suspected_underlog": 0
   },
