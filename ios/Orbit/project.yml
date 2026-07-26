@@ -1,0 +1,168 @@
+# XcodeGen project spec — generates `Orbit.xcodeproj` (see README.md in this
+# directory for why this project uses XcodeGen instead of a hand-authored
+# .pbxproj, and the one-line generation command to run on the Mac).
+#
+# T11-T14 wired DesignSystem/, Resources/, Tests/, Core/, App/,
+# Screens/(partial: SignIn/Register/Settings), Components/. T15 adds
+# Figures/ and completes Screens/. T16 adds the UI-test files. T17 adds
+# Space/ (StarfieldView.swift). T18 (HeroSceneView/Textures) extends the
+# SAME Space/ path — no new `sources:` entry needed for it.
+name: Orbit
+
+# SPM dependencies — exact-pinned per plan.md's cooldown rule (implementation
+# commitment: >=14 days old, never a blind "latest"), and each package URL
+# hand-verified against its canonical GitHub org this session (standing
+# typosquat guard, `dependency-audit-policy`).
+#
+# FirebaseiOS: `api.github.com/repos/firebase/firebase-ios-sdk` resolves to
+# the `firebase` GitHub Organization (not a look-alike user/fork), 6600+
+# stars, not archived. Version 12.15.0 published 2026-06-16 (verified via the
+# GitHub Releases API this session) — one minor behind the 12.16.0 latest
+# (published 2026-07-08, too close to the 14-day cooldown floor to trust
+# yet) — satisfies both the cooldown rule and the `n-1` obsolescence rule at
+# once.
+#
+# SwiftSnapshotTesting (T14, test-only — see `OrbitTests`' dependencies
+# below): `api.github.com/repos/pointfreeco/swift-snapshot-testing` resolves
+# to the `pointfreeco` GitHub Organization (not a look-alike fork), 4200+
+# stars, not archived — verified via the GitHub API this session. Version
+# 1.19.2 published 2026-03-30 (verified via the GitHub Releases API this
+# session, ~117 days old) — one patch behind the 1.19.3 latest (published
+# 2026-07-08, only ~17 days old — the SAME "too close to trust yet" judgment
+# call `FirebaseiOS` already applies above, kept consistent rather than
+# picking a different cooldown margin for a second dependency).
+packages:
+  FirebaseiOS:
+    url: https://github.com/firebase/firebase-ios-sdk.git
+    exactVersion: 12.15.0
+  SwiftSnapshotTesting:
+    url: https://github.com/pointfreeco/swift-snapshot-testing.git
+    exactVersion: 1.19.2
+
+options:
+  # Placeholder pending real App Store Connect registration — finalizing the
+  # bundle id is app-store-submission-requirements' job at the submission
+  # task, not this one; XcodeGen just needs a syntactically valid stem now.
+  bundleIdPrefix: com.orbitfitness
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    TARGETED_DEVICE_FAMILY: "1" # iPhone only (design is a fixed 402x874pt phone layout)
+
+targets:
+  Orbit:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: DesignSystem
+      - path: Core
+      - path: App
+      - path: Screens
+      - path: Components
+      - path: Figures
+      - path: Space
+      - path: Resources
+        buildPhase: resources
+        # Info.plist is referenced directly via INFOPLIST_FILE below — it
+        # must NOT also be swept into the generic Copy Bundle Resources
+        # phase, or the build produces a duplicate-output error. Everything
+        # else under Resources/ (Assets.xcassets, PrivacyInfo.xcprivacy, and
+        # Fonts/*.ttf once the Mac-phase operator adds them per
+        # Resources/Fonts/FONTS-TODO.md) IS meant to be a plain resource, so
+        # this is the only exclusion needed.
+        excludes:
+          - Info.plist
+    dependencies:
+      - package: FirebaseiOS
+        product: FirebaseAuth
+      - package: FirebaseiOS
+        product: FirebaseCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.orbitfitness.orbit
+        PRODUCT_NAME: Orbit
+        # T13 supplies a real Info.plist (ATS/UIAppFonts/export-compliance/
+        # OrbitAPIBaseURL) — replaces T11's GENERATE_INFOPLIST_FILE
+        # placeholder. CFBundleDisplayName now lives IN that file (CLAUDE.md:
+        # "Orbit" stays the short home-screen label).
+        INFOPLIST_FILE: Resources/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MARKETING_VERSION: "0.9"
+        CURRENT_PROJECT_VERSION: "1"
+
+  OrbitTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Tests
+        # UITests/ is a separate bundle.ui-testing target (OrbitUITests,
+        # below) — XCUIApplication-driven tests need a distinct test-bundle
+        # type/host from the Swift Testing unit suite here. T16's
+        # SmokeUITests.swift/AccessibilityTests.swift are ALSO XCUIApplication-
+        # driven (not Swift Testing) despite living directly under `Tests/`
+        # (per `.pipeline/tasks.md`'s literal file names) — excluded here and
+        # added to `OrbitUITests`' own sources below instead.
+        excludes:
+          - UITests/**
+          - SmokeUITests.swift
+          - AccessibilityTests.swift
+    dependencies:
+      - target: Orbit
+      # T14: swift-snapshot-testing — component-fidelity snapshots
+      # (`Tests/ComponentSnapshotTests.swift`), ADVISORY ONLY per plan.md's
+      # test-strategy ("never a gate") — a test-only dependency, not linked
+      # into the shipping `Orbit` app target at all.
+      - package: SwiftSnapshotTesting
+        product: SnapshotTesting
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_STRICT_CONCURRENCY: complete
+
+  # XCUITest skeletons (T13 — sign-in/register, sign-out ordering,
+  # delete-account) per plan.md's test-strategy: "XCUITest for the
+  # end-to-end smoke flow against the real API" (AC27/AC34/AC5). These
+  # require a REAL running backend + Firebase Auth emulator (see each test
+  # file's own header comment) — they run on the operator's Mac phase, never
+  # on this Linux host, and are not part of the backend's `pytest` gate.
+  OrbitUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Tests/UITests
+      # T16's AC27 full-smoke-chain + Reduce-Motion/VoiceOver/hit-target
+      # tests — literal top-level `Tests/` paths per `.pipeline/tasks.md`'s
+      # own expected-file names, added here (not to `Tests/UITests/`) rather
+      # than renaming/moving the task's named files.
+      - path: Tests/SmokeUITests.swift
+      - path: Tests/AccessibilityTests.swift
+    dependencies:
+      - target: Orbit
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_STRICT_CONCURRENCY: complete
+        TEST_TARGET_NAME: Orbit
+
+schemes:
+  Orbit:
+    build:
+      targets:
+        Orbit: all
+        OrbitTests: [test]
+        OrbitUITests: [test]
+    test:
+      targets:
+        - OrbitTests
+        - OrbitUITests
+    run:
+      config: Debug

@@ -1,0 +1,14 @@
+# The REAL backend declaration (iac-conventions: S3 remote state, SSE-
+# encrypted, + DynamoDB lock). NOT parsed by Terraform as-is (this file's
+# name doesn't end in `.tf`) — copy it over `backend.tf` to activate it, per
+# the activation steps documented in `backend.tf`'s own header comment.
+#
+# Bucket/key/region/table are intentionally NOT hardcoded — they differ per
+# AWS account and are supplied at real `terraform init` time via
+# `-backend-config=backend.hcl` (a local, gitignored file; see
+# `backend.hcl.example` for the exact keys).
+terraform {
+  backend "s3" {
+    encrypt = true # SSE on the state object itself (iac-conventions: "state is encrypted")
+  }
+}
