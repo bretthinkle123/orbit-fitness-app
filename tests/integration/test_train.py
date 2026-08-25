@@ -16,7 +16,22 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from orbit.repositories.train import mark_set_done
 from tests.conftest import run_row_query, run_scalar_query
 
-_TODAY = datetime.date.today()
+def _most_recent_wednesday(today: datetime.date) -> datetime.date:
+    """The Wednesday on or before `today`.
+
+    These tests anchor to a mid-week day rather than to the real `today` so
+    that `_YESTERDAY` is always in the SAME ISO week as `_TODAY`. With a bare
+    `date.today()`, a Monday run put `_YESTERDAY` on the preceding Sunday —
+    the previous week under the API's Monday-start bounds (`routes/train.py`
+    `_week_bounds`) — and `test_mark_set_done_only_counts_the_requested_day`
+    failed one day in seven. Pinning the weekday is safe because the API
+    derives every week/day computation from the `day_key` the client sends,
+    never from the server clock (`schemas/train.py`).
+    """
+    return today - datetime.timedelta(days=(today.weekday() - 2) % 7)
+
+
+_TODAY = _most_recent_wednesday(datetime.date.today())
 _YESTERDAY = _TODAY - datetime.timedelta(days=1)
 
 
