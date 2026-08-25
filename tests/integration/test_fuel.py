@@ -10,7 +10,6 @@ import asyncio
 import datetime
 
 import pytest
-import requests
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -353,7 +352,7 @@ def test_get_fuel_day_rejects_an_undeclared_query_param(client, firebase_test_us
 # ---------------------------------------------------------------------------
 
 
-def test_fuel_entries_never_cross_owners(client, firebase_test_user, firebase_emulator):
+def test_fuel_entries_never_cross_owners(client, firebase_test_user, firebase_second_user):
     """A logs food for today; B (a distinct principal, also bootstrapped)
     reads an empty day — A's entries never appear in B's grouped read or
     totals."""
@@ -365,14 +364,7 @@ def test_fuel_entries_never_cross_owners(client, firebase_test_user, firebase_em
         json=_explicit_macro_body(day_key=day_key, logged_at=_now_iso()),
     )
 
-    signup_b = requests.post(
-        f"http://{firebase_emulator}/identitytoolkit.googleapis.com/v1/accounts:signUp",
-        params={"key": "fake-api-key"},
-        json={"email": "fuel-idor-b@example.com", "password": "Password123!", "returnSecureToken": True},
-        timeout=5,
-    )
-    signup_b.raise_for_status()
-    headers_b = _auth_header(signup_b.json()["idToken"])
+    headers_b = _auth_header(firebase_second_user()["id_token"])
     client.post("/me/bootstrap", headers=headers_b)
 
     response_b = client.get(f"/fuel?day_key={day_key}", headers=headers_b)

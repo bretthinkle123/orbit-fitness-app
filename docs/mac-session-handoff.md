@@ -57,6 +57,7 @@ again (gitignored) and has been recreated there.
 ```sh
 brew services start postgresql@16 redis
 firebase emulators:start --only auth --project demo-orbit-test    # needs JAVA_HOME
+scripts/seed_ui_test_user.sh          # the account the XCUITest sign-in tests need
 DATABASE_URL="postgresql+asyncpg://$(whoami)@localhost:5432/orbit" \
   FIREBASE_PROJECT_ID=demo-orbit-test FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 \
   REDIS_URL="redis://localhost:6379/0" PYTHONPATH=src \
@@ -149,8 +150,15 @@ budget and per-run log), and a Phase-5 storage gate in the runbook.
 - `ios/Orbit/Tests/__Snapshots__/` is new and untracked — snapshot baselines recorded by
   the first run. Review before committing; they are only as correct as the render that
   produced them.
-- The Firebase emulator holds a throwaway `probe@test.com` user created via REST to prove
-  the emulator worked. Harmless; clear whenever.
+- ~~The Firebase emulator holds a throwaway `probe@test.com` user~~ — the emulator's
+  accounts were cleared on 2026-08-24. Note that clearing them ALSO removes the account
+  the XCUITest sign-in tests need; `scripts/seed_ui_test_user.sh` recreates it, and the
+  backend suite no longer depends on emulator state at all (see below).
+- **The integration suite is re-runnable again.** Six cross-owner tests used to hardcode
+  user B's email (`profile-idor-b@example.com` and siblings), so the first run created
+  those accounts and every rerun died on `EMAIL_EXISTS` until the emulator was wiped.
+  They now share `conftest.py`'s `firebase_second_user` factory, which mints a fresh
+  `uuid4` address per call.
 - Backend `pip install -e .` fails: `pyproject.toml` pins `poetry-core<2.0`, which cannot
   read the PEP-621 `[project]` table. Worked around with `PYTHONPATH=src`.
 - `tests/conftest.py:113` deadlocks: on the not-ready path `process.stdout.read()` blocks

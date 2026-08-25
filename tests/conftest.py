@@ -150,6 +150,43 @@ def firebase_test_user(firebase_emulator):
 
 
 @pytest.fixture
+def firebase_second_user(firebase_emulator):
+    """Factory fixture: mint an ADDITIONAL Firebase user on demand — the
+    second principal every cross-owner (IDOR) test needs alongside
+    `firebase_test_user`'s owner A.
+
+    Each call gets a fresh `uuid4` address, exactly as `firebase_test_user`
+    does. Six modules used to inline this same signUp with a HARDCODED
+    email (`profile-idor-b@example.com` and siblings), which quietly made
+    the whole integration suite single-shot: the first run created those
+    six accounts and every rerun afterwards died on `EMAIL_EXISTS`, because
+    the Firebase emulator keeps its users until it is wiped or restarted.
+    Four of the six copies had also drifted off the shared API-key and
+    password constants. One factory instead, per `test-conventions`'
+    rule of two (U-21).
+
+    Deliberately does NOT call `reset_app_for_tests()`: unlike
+    `firebase_test_user` this runs MID-test, with owner A's token already
+    in flight, and resetting the cached Admin app underneath A is not this
+    fixture's business.
+    """
+
+    def _make_user() -> dict[str, str]:
+        email = f"{uuid.uuid4().hex}@example.com"
+        response = requests.post(
+            f"http://{firebase_emulator}/identitytoolkit.googleapis.com/v1/accounts:signUp",
+            params={"key": _EMULATOR_API_KEY},
+            json={"email": email, "password": _TEST_USER_PASSWORD, "returnSecureToken": True},
+            timeout=5,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return {"uid": data["localId"], "id_token": data["idToken"], "email": email}
+
+    return _make_user
+
+
+@pytest.fixture
 def firebase_sign_in(firebase_emulator):
     """Factory fixture: sign in an existing test user again, minting a FRESH
     ID token — Firebase mints a new token per sign-in (rotation on auth,

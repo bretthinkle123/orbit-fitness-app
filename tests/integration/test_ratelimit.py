@@ -10,7 +10,6 @@ deletion.py`'s Tier-2-throttle test is the second consumer).
 """
 
 import pytest
-import requests
 
 
 @pytest.fixture(autouse=True)
@@ -24,7 +23,7 @@ def _tight_tier2_limit(_wire_real_redis_and_tight_tier2_limit):
 
 
 def test_two_principals_sharing_one_ip_get_independent_tier2_buckets(
-    client, firebase_test_user, firebase_emulator
+    client, firebase_test_user, firebase_second_user
 ):
     """Principal A exhausts their own (limit=1) Tier-2 bucket; principal B —
     a different Firebase user hitting the SAME TestClient (i.e. the same
@@ -41,14 +40,7 @@ def test_two_principals_sharing_one_ip_get_independent_tier2_buckets(
     assert second_call_for_a.json()["error"]["code"] == "rate_limited"
 
     # A second, distinct principal on the identical TestClient (same "IP").
-    signup = requests.post(
-        f"http://{firebase_emulator}/identitytoolkit.googleapis.com/v1/accounts:signUp",
-        params={"key": "fake-api-key"},
-        json={"email": "principal-b@example.com", "password": "Password123!", "returnSecureToken": True},
-        timeout=5,
-    )
-    signup.raise_for_status()
-    token_b = signup.json()["idToken"]
+    token_b = firebase_second_user()["id_token"]
 
     call_for_b = client.post("/me/signout", headers={"Authorization": f"Bearer {token_b}"})
     assert call_for_b.status_code == 204, "a different principal must not share A's exhausted bucket"

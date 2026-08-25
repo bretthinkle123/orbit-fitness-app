@@ -10,7 +10,6 @@ import asyncio
 import datetime
 
 import pytest
-import requests
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from orbit.repositories.train import mark_set_done
@@ -373,7 +372,7 @@ def test_delete_set_event_rejects_an_unknown_exercise_id(client, firebase_test_u
 
 
 def test_cross_owner_cannot_unmark_anothers_set_and_day_view_stays_empty(
-    client, firebase_test_user, firebase_emulator, postgres_url
+    client, firebase_test_user, firebase_second_user, postgres_url
 ):
     """A marks a set; B (a distinct, bootstrapped principal) cannot unmark
     A's row (B's identical-looking DELETE only ever scopes to B's OWN,
@@ -394,14 +393,7 @@ def test_cross_owner_cannot_unmark_anothers_set_and_day_view_stays_empty(
     )
     assert mark_response.status_code == 200
 
-    signup_b = requests.post(
-        f"http://{firebase_emulator}/identitytoolkit.googleapis.com/v1/accounts:signUp",
-        params={"key": "fake-api-key"},
-        json={"email": "train-idor-b@example.com", "password": "Password123!", "returnSecureToken": True},
-        timeout=5,
-    )
-    signup_b.raise_for_status()
-    headers_b = _auth_header(signup_b.json()["idToken"])
+    headers_b = _auth_header(firebase_second_user()["id_token"])
     _bootstrap(client, headers_b)
 
     delete_as_b = client.request(
