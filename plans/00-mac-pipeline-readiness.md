@@ -227,3 +227,4 @@ the Mac; append the outcome to this file's Verification log.
 
 _(appended by each readiness run — newest last)_
 - 2026-08-14: FULL=NO (Docker absent), iOS=PARTIAL — app BUILDS + RUNS + works end-to-end against the local stack for the first time; 9 code defects found and fixed (see docs/mac-session-handoff.md). Test bundle now compiles; XCUITest 11/12 failing, undiagnosed — resume there.
+- 2026-08-24: FULL=NO (Docker + gh auth only), iOS=YES — engine installed (46 hooks / 10 agents), `tests/run-eval.sh` ALL SUITES PASSED (259 checks incl. the three mapfile hooks after the pre-authorized shebang fix), GNU userland + all 7 scanners installed, terraform offline probe OK. Repo MOVED out of iCloud to ~/repos/orbit-fitness-app; app builds + all suites green from the new path. Remaining: operator installs Docker Desktop and runs `gh auth login`.

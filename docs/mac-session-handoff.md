@@ -22,19 +22,35 @@ returning 200 against the real local backend, with theme switches persisting via
 | iOS Swift Testing unit suites | **155 of 157 pass** (was: host crashed, 0 executed) |
 | iOS snapshot suites | Re-record baselines on a clean run (advisory) |
 
-## Environment (all set up, survives reboot)
+## Environment (2026-08-24 — pipeline installed)
 
-- Homebrew at `/opt/homebrew`; `postgresql@16` + `redis` running as services.
-- DB `orbit` created and migrated (`alembic upgrade head`, 10 tables + seed data).
-- JDK 21 at `~/.jdks/temurin-21` (the `temurin` cask needs sudo; this is the no-password
-  equivalent). `node`, `xcodegen`, `firebase-tools` via brew/npm.
-- `~/.zprofile` and `~/.bash_profile` both export `brew shellenv` + `JAVA_HOME`.
-- iOS 26.5 simulator runtime installed (~20 GB).
+**Repo now lives at `~/repos/orbit-fitness-app`** — moved off the iCloud-synced Desktop.
+That was not cosmetic: 8,978 of 10,071 files were evicted (`dataless`), and the backend
+unit suite went from 2.5s to **0.13s** after the move. A `.venv` inside the repo is safe
+again (gitignored) and has been recreated there.
 
-**The Python venv must live OUTSIDE the repo.** The repo sits on an iCloud-synced
-Desktop; under disk pressure iCloud evicts venv files and every `import` blocks on a
-network fetch — `import pytest` took >75s and looked exactly like a hung test suite.
-See `docs/simulator-storage.md`.
+- Homebrew; `postgresql@16` + `redis` running as services; DB `orbit` migrated.
+- JDK 21 at `~/.jdks/temurin-21`; `node`, `xcodegen`, `firebase-tools`.
+- **GNU userland**: bash 5.3 + coreutils/gnu-sed/grep/gawk/findutils, with the gnubin
+  dirs prepended in `~/.zprofile` and `~/.bash_profile`, so `timeout`, `sha256sum`,
+  `stat -c` and `sed -i` resolve as the engine expects.
+- **Scanners**: gh, semgrep, osv-scanner, gitleaks, ast-grep, checkov. Terraform is at
+  `~/.local/bin/terraform` (HashiCorp's official arm64 binary — the brew tap wanted
+  Command Line Tools to build from source).
+- **Pipeline engine INSTALLED**: `~/.claude` has 46 hooks and all 10 agents, from
+  `~/repos/claude-agentic-workflow`. `tests/run-eval.sh` reports **ALL SUITES PASSED**
+  (259 checks across 18 suites) — including `asvs-sast`, `tree-hygiene` and
+  `doc-identifiers`, the three hooks that use `mapfile`, which proves the pre-authorized
+  `#!/usr/bin/env bash` shebang fix worked. **Those three shebang edits live only in the
+  local engine clone — commit them upstream.**
+- `check-run-host.sh` prints "running on the Windows host" on macOS. Expected and
+  advisory, exactly as the runbook predicts; the missing Darwin branch is an engine gap.
+
+### Still operator-only
+
+- **Docker Desktop** — not installed. Blocks the 10 DB-backed backend integration
+  modules and the testcontainers path.
+- **`gh auth login`** — not logged in. Deployment commits/PRs need it.
 
 ## To restart the stack
 
