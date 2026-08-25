@@ -1,5 +1,35 @@
 import SwiftUI
 
+#if DEBUG
+private struct GreetingHourOverrideKey: EnvironmentKey {
+    static let defaultValue: Int? = nil
+}
+
+extension EnvironmentValues {
+    /// Snapshot-test seam: pin the hour `HomeView`'s greeting is derived from,
+    /// instead of reading the wall clock.
+    ///
+    /// Needed because the greeting is the ONE part of Home that is not a
+    /// function of the store's pinned `dayKey`: it reads `Date()` and buckets
+    /// it via `GreetingText.timeOfDayGreeting(hour:)` ("Good morning" /
+    /// "afternoon" / "evening" / "night"). A recorded baseline therefore only
+    /// matches when the suite is re-run inside the SAME time-of-day bucket it
+    /// was recorded in — `testHomeViewLoadedState` recorded at 22:40 ("Good
+    /// night") failed the next afternoon ("Good afternoon"), which reads as a
+    /// visual regression rather than a clock-dependent fixture. The rest of
+    /// the screen was already deterministic (`AppStore(dayKey: "2026-07-25")`);
+    /// this closes the last gap.
+    ///
+    /// `#if DEBUG` so no test seam exists in release source (AC32/SC-7), the
+    /// same posture as `heroSceneRenderingEnabled` and
+    /// `OrbitApp.resetAuthStateIfRequested`.
+    var greetingHourOverride: Int? {
+        get { self[GreetingHourOverrideKey.self] }
+        set { self[GreetingHourOverrideKey.self] = newValue }
+    }
+}
+#endif
+
 /// SCREEN-1 Home — the daily dashboard aggregating profile+fuel+train+weight
 /// (plan §Backend "API rationale": "the Home dashboard composes
 /// profile+fuel+train+weight with Swift `async let` concurrency (4 parallel
@@ -18,6 +48,11 @@ struct HomeView: View {
     /// resolved here per the design's own stated intent: switch to the
     /// Train tab.
     let onStartPushDay: () -> Void
+
+    #if DEBUG
+    /// Snapshot-test seam — see `EnvironmentValues.greetingHourOverride`.
+    @Environment(\.greetingHourOverride) private var greetingHourOverride
+    #endif
 
     @State private var isShowingWeightSheet = false
     // T18: the scroll-progress facade every hero-bearing screen shares
@@ -113,7 +148,10 @@ struct HomeView: View {
     }
 
     private var greeting: some View {
-        let hour = Calendar.current.component(.hour, from: Date())
+        var hour = Calendar.current.component(.hour, from: Date())
+        #if DEBUG
+        hour = greetingHourOverride ?? hour
+        #endif
         return Text(GreetingText.timeOfDayGreeting(hour: hour))
             .font(.orbit(.screenTitle))
             .foregroundStyle(Theme.Neutral.textPrimary)

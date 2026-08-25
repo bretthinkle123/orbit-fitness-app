@@ -78,7 +78,13 @@ final class ScreenSnapshotTests: XCTestCase {
     func testHomeViewLoadedState() async throws {
         let store = await makeLoadedStore()
         assertScreenSnapshot(
-            HomeView(store: store, authService: MockAuthService(), onOpenSettings: {}, onStartPushDay: {}),
+            HomeView(store: store, authService: MockAuthService(), onOpenSettings: {}, onStartPushDay: {})
+                // Home's greeting is the one element NOT derived from the
+                // store's pinned `dayKey` — it buckets the WALL-CLOCK hour, so
+                // an unpinned baseline only matches when re-run in the same
+                // time-of-day bucket it was recorded in. Pin it (9 → "Good
+                // morning") so this baseline is stable at any hour.
+                .environment(\.greetingHourOverride, 9),
             named: "loaded"
         )
     }
