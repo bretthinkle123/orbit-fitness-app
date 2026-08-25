@@ -5,6 +5,16 @@ import Foundation
 /// injecting the whole `AuthServiceProtocol`) so `APIClient` depends on the
 /// smallest possible abstraction (interface segregation) and so
 /// `CoreTests.swift` can mock a token supplier without standing up Firebase.
+///
+/// `@MainActor` because its only production conformer (`FirebaseAuthService`)
+/// is main-actor-confined — the Firebase SDK's `Auth`/`User` types predate
+/// Swift 6 auditing, so that class confines every call to one actor. A
+/// non-isolated requirement witnessed by a main-actor method is precisely the
+/// data race Swift 6 rejects. Isolating the protocol instead of loosening the
+/// conformer keeps the confinement honest, and costs callers nothing:
+/// `currentIDToken()` is `async`, so the non-isolated `LiveAPIClient` still
+/// calls it with a plain `await` across the actor hop.
+@MainActor
 protocol BearerTokenProviding: Sendable {
     /// Returns a currently-valid Firebase ID token, refreshing it first if
     /// the identity layer considers it stale. Throws if the caller isn't

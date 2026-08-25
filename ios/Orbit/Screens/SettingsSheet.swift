@@ -135,7 +135,7 @@ struct SettingsSheet: View {
                 theme: theme
             )
             SettingsRow(
-                title: "Macro split \u{00b7} \(store.profile.map { "\($0.proteinPct)P/\($0.carbPct)C/\($0.fatPct)F" } ?? "")",
+                title: "Macro split \u{00b7} \(store.profile.map { "\($0.proteinPercent)P/\($0.carbPercent)C/\($0.fatPercent)F" } ?? "")",
                 kind: .chevron(action: { isShowingMacroEditor = true }),
                 theme: theme
             )
@@ -198,6 +198,13 @@ struct SettingsSheet: View {
                 )
                 .frame(width: 32, height: 32)
                 .frame(minWidth: Metrics.HitTarget.minimum, minHeight: Metrics.HitTarget.minimum)
+                // Without this the tappable area — and the frame VoiceOver and
+                // XCUITest report — collapses to the 32pt circle's own bounds,
+                // not the 44pt box around it, because a `Circle()` only takes
+                // hits inside its shape. Measured 31pt against the 44pt
+                // minimum CLAUDE.md names as an acceptance criterion.
+                // `contentShape` makes the whole padded box the hit region.
+                .contentShape(Rectangle())
         }
         .accessibilityIdentifier("settings-palette-\(preset.rawValue)")
         .accessibilityLabel(Text(preset.rawValue.capitalized))

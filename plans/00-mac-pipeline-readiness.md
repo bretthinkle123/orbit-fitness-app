@@ -187,6 +187,15 @@ a documented T11 deviation. Generate first: `brew install xcodegen && cd ios/Orb
 xcodegen generate`. Fonts: complete `Resources/Fonts/FONTS-TODO.md` (7 OFL .ttf files +
 URLs listed there) or accept the SF-substitute fallback the app already handles._
 
+**Storage gate — run this BEFORE anything else in this phase:**
+`bash scripts/check_simulator_storage.sh --log --label="before <run name>"`, and again
+after the run. Exit 2 means stop and reclaim first — see `docs/simulator-storage.md` for
+the budget, the reclaim playbook, and the per-run log. This is not bookkeeping: on
+2026-08-12 a 99%-full data volume caused iCloud to evict the Python venv's files, and the
+resulting import stalls presented as a hung test suite rather than as a disk problem.
+An iOS runtime is ~20 GB and each Xcode upgrade adds another, so this phase is the one
+that actually consumes the disk — the app's own source is 19 MB.
+
 **Preferred path — Claude Code Desktop (v1.24+ simulator pane):**
 1. Open Claude Code Desktop on the cloned repo; start the backend stack first
    (uvicorn + Docker Postgres/Redis + `firebase emulators:start --only auth`)
@@ -217,3 +226,4 @@ the Mac; append the outcome to this file's Verification log.
 ## Verification log
 
 _(appended by each readiness run — newest last)_
+- 2026-08-14: FULL=NO (Docker absent), iOS=PARTIAL — app BUILDS + RUNS + works end-to-end against the local stack for the first time; 9 code defects found and fixed (see docs/mac-session-handoff.md). Test bundle now compiles; XCUITest 11/12 failing, undiagnosed — resume there.

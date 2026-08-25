@@ -23,7 +23,14 @@ struct HourTimeline: View {
     var nowHour: Int?
     var theme = Theme()
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @Environment(\.reduceMotionOverride) private var reduceMotionOverride
+    /// Resolved through `MotionPreference` so the snapshot suites can force
+    /// Reduce Motion ON: the system key is read-only in the SDK, so tests
+    /// write `reduceMotionOverride` instead.
+    private var reduceMotion: Bool {
+        MotionPreference.resolvedReduceMotion(system: systemReduceMotion, override: reduceMotionOverride)
+    }
     @State private var isPulsing = false
 
     private static let displayedHours = Array(6...21)
@@ -95,7 +102,12 @@ struct HourTimeline: View {
     }
 
     /// 24-hour → "6 AM"/"9 PM" formatting — a pure function.
-    static func hourLabel(_ hour24: Int) -> String {
+    // `nonisolated`: this is pure math with no view state, but it lives on a
+    // `View`, so Swift 6 isolates it to the main actor by inheritance. The
+    // Swift Testing cases that exercise it run OFF the main actor, and the
+    // isolation check traps at runtime — SIGTRAP, taking the whole test host
+    // down rather than failing one test.
+    nonisolated static func hourLabel(_ hour24: Int) -> String {
         let period = hour24 < 12 ? "AM" : "PM"
         let displayHour = hour24 % 12 == 0 ? 12 : hour24 % 12
         return "\(displayHour) \(period)"

@@ -64,7 +64,12 @@ struct Sparkline: View {
     /// empty/single-value guard (returns `[]`), a flat series (`min ==
     /// max`, every point should land at the vertical midline), and that
     /// endpoints land exactly at the frame's left/right edges.
-    static func normalizedPoints(values: [Double], size: CGSize) -> [CGPoint] {
+    // `nonisolated`: this is pure math with no view state, but it lives on a
+    // `View`, so Swift 6 isolates it to the main actor by inheritance. The
+    // Swift Testing cases that exercise it run OFF the main actor, and the
+    // isolation check traps at runtime — SIGTRAP, taking the whole test host
+    // down rather than failing one test.
+    nonisolated static func normalizedPoints(values: [Double], size: CGSize) -> [CGPoint] {
         guard values.count > 1, size.width > 0, size.height > 0 else { return [] }
         let minValue = values.min() ?? 0
         let maxValue = values.max() ?? 0

@@ -31,7 +31,12 @@ struct LevelSegments: View {
     /// its `level` input directly, matching `Theme.levelScaleStop`'s own
     /// documented "trap loudly on a real data bug" precondition rather than
     /// silently clamping inside the view).
-    static func clampedLevel(_ level: Int) -> Int {
+    // `nonisolated`: this is pure math with no view state, but it lives on a
+    // `View`, so Swift 6 isolates it to the main actor by inheritance. The
+    // Swift Testing cases that exercise it run OFF the main actor, and the
+    // isolation check traps at runtime — SIGTRAP, taking the whole test host
+    // down rather than failing one test.
+    nonisolated static func clampedLevel(_ level: Int) -> Int {
         min(max(level, 0), 6)
     }
 }

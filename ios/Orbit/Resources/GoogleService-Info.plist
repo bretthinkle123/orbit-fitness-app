@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LOCAL / EMULATOR-ONLY Firebase configuration.
+
+  `App/OrbitApp.swift` calls `FirebaseApp.configure()`, which reads this file
+  and aborts the launch if it is absent — so the app cannot start on a
+  simulator without it. Every value below is a placeholder for the
+  `demo-orbit-test` project: the `demo-` prefix is Firebase's documented
+  offline convention, and `configureFirebaseAuthEmulatorIfConfigured()` routes
+  all auth traffic to `localhost:9099`. Nothing here reaches a real Google
+  endpoint, and none of it is a credential to protect.
+
+  BEFORE SHIPPING: replace this with the real GoogleService-Info.plist from the
+  Firebase console for the production project (and decide then whether it
+  belongs in the repo or in the build's secret material). Tracked as a
+  deploy-time obligation alongside the Firebase password-policy item in
+  `plans/01-production-deploy-path.md`.
+-->
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>fake-api-key-emulator-only</string>
+	<key>GCM_SENDER_ID</key>
+	<string>000000000000</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.orbitfitness.orbit</string>
+	<key>PROJECT_ID</key>
+	<string>demo-orbit-test</string>
+	<key>STORAGE_BUCKET</key>
+	<string>demo-orbit-test.appspot.com</string>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:000000000000:ios:0000000000000000000000</string>
+	<key>IS_ADS_ENABLED</key>
+	<false/>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false/>
+	<key>IS_APPINVITE_ENABLED</key>
+	<false/>
+	<key>IS_GCM_ENABLED</key>
+	<false/>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true/>
+</dict>
+</plist>

@@ -575,7 +575,15 @@ struct StarfieldView: View {
     /// size rather than the device's actual (near-identical, always-portrait-
     /// phone) frame, avoiding a `GeometryReader`-driven regeneration/resize
     /// path the app's own fixed-layout architecture doesn't need.
-    static let referenceSize = CGSize(width: 402, height: 874)
+    ///
+    /// `nonisolated` because `StarfieldView` is a `View`, and therefore
+    /// `@MainActor`-isolated under Swift 6 — which would otherwise isolate this
+    /// constant too, making it unusable as the default value of a `static let`
+    /// in the nonisolated test cases that measure against it
+    /// (`Tests/StarfieldSnapshotTests.swift`, `Tests/SpaceTests.swift`). It is
+    /// an immutable `Sendable` constant, so there is nothing here for an actor
+    /// to protect.
+    nonisolated static let referenceSize = CGSize(width: 402, height: 874)
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var simulation: StarfieldSimulation

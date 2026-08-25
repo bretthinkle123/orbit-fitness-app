@@ -37,7 +37,14 @@ struct RootTabView: View {
     let onAccountDeleted: () -> Void
 
     @State private var router = AppRouter()
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @Environment(\.reduceMotionOverride) private var reduceMotionOverride
+    /// Resolved through `MotionPreference` so the snapshot suites can force
+    /// Reduce Motion ON: the system key is read-only in the SDK, so tests
+    /// write `reduceMotionOverride` instead.
+    private var reduceMotion: Bool {
+        MotionPreference.resolvedReduceMotion(system: systemReduceMotion, override: reduceMotionOverride)
+    }
 
     /// CMP-24's fixed 4-item set — icons verbatim from the native `TabView`
     /// chrome this replaces (no visual change to which glyph represents

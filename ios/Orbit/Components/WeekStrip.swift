@@ -29,7 +29,12 @@ struct WeekStrip: View {
     /// (Swift Testing exercises all-false/all-true/partial-fill and a
     /// non-7-length input, the task's named "WeekStrip day computation"
     /// math slice).
-    static func sessionCount(in filledDays: [Bool]) -> Int {
+    // `nonisolated`: this is pure math with no view state, but it lives on a
+    // `View`, so Swift 6 isolates it to the main actor by inheritance. The
+    // Swift Testing cases that exercise it run OFF the main actor, and the
+    // isolation check traps at runtime — SIGTRAP, taking the whole test host
+    // down rather than failing one test.
+    nonisolated static func sessionCount(in filledDays: [Bool]) -> Int {
         filledDays.filter { $0 }.count
     }
 }

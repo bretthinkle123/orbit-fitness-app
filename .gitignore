@@ -245,3 +245,11 @@ ios/**/*.xcworkspace/xcuserdata/
 ios/**/DerivedData/
 ios/**/.build/
 ios/**/*.xcuserstate
+
+# Snapshot-test reference images. Deliberately NOT committed: they are
+# machine-specific (recorded against a particular GPU + simulator runtime, and
+# compared with a perceptual tolerance rather than exactly), they are bulky
+# (~30 MB for 50 screens) and would grow on every UI change, and the snapshot
+# suites are advisory-only, never a gate. Each machine records its own on the
+# first run — see docs/mac-session-handoff.md.
+ios/Orbit/Tests/__Snapshots__/
