@@ -23,6 +23,7 @@ struct OrbitApp: App {
         Self.configureFirebaseAuthEmulatorIfConfigured()
 
         let tokenStore = KeychainTokenStore()
+        Self.resetAuthStateIfRequested(tokenStore: tokenStore)
         let authService = FirebaseAuthService(tokenStore: tokenStore)
         let apiClient = LiveAPIClient(baseURL: Self.resolveAPIBaseURL(), tokenProvider: authService)
         authService.remoteSession = apiClient // closes T12's documented deferral — see doc comment above
@@ -64,6 +65,30 @@ struct OrbitApp: App {
         return url
     }
 
+    /// Debug-only, opt-in "start this launch signed OUT" reset for the
+    /// XCUITest suites (`Tests/UITests/AuthFlowUITests.swift`'s `launchApp()`
+    /// passes the flag).
+    ///
+    /// Every auth UI test begins on the sign-in screen, but a signed-in
+    /// Firebase session SURVIVES BOTH app relaunch and app UNINSTALL — the
+    /// SDK keeps it in the Keychain, which on a simulator is device-wide, not
+    /// per-install. So once any account has signed in on that simulator
+    /// (including a human poking at the app by hand), every auth test launches
+    /// straight into the signed-in tab shell and fails looking for sign-in
+    /// fields that are not on screen. Erasing the whole simulator would also
+    /// fix it, but that is an environment step nobody can be relied on to
+    /// remember; this makes each run self-contained.
+    ///
+    /// Compiled out of Release entirely, so a shipping build has no way to
+    /// clear a user's session from a launch argument.
+    private static func resetAuthStateIfRequested(tokenStore: TokenStoring) {
+        #if DEBUG
+        guard ProcessInfo.processInfo.arguments.contains("-OrbitUITestResetAuth") else { return }
+        try? Auth.auth().signOut()
+        try? tokenStore.clear()
+        #endif
+    }
+
     /// Debug-only, opt-in Firebase Auth emulator wiring — mirrors the
     /// backend's own `FIREBASE_AUTH_EMULATOR_HOST` detection
     /// (`src/orbit/auth/firebase.py`), so the Mac-phase operator's local/
@@ -75,8 +100,20 @@ struct OrbitApp: App {
         #if DEBUG
         let fromEnvironment = ProcessInfo.processInfo.environment["OrbitFirebaseAuthEmulatorHost"]
         let fromInfoPlist = Bundle.main.object(forInfoDictionaryKey: "OrbitFirebaseAuthEmulatorHost") as? String
-        guard let emulatorHost = fromEnvironment ?? fromInfoPlist, !emulatorHost.isEmpty else { return }
-        Auth.auth().useEmulator(withHost: emulatorHost, port: 9099)
+        guard let configuredValue = fromEnvironment ?? fromInfoPlist, !configuredValue.isEmpty else { return }
+        // Accept BOTH "localhost" and "localhost:9099". The convention this
+        // mirrors — the backend's `FIREBASE_AUTH_EMULATOR_HOST`, and the value
+        // `Tests/SmokeUITests.swift` / `Tests/UITests/AuthFlowUITests.swift`
+        // document and set — is `host:port`, but `useEmulator` takes the two
+        // separately. Passing the combined string straight through as
+        // `withHost:` builds `http://localhost:9099:9099/...`, which never
+        // resolves; the Firebase SDK then surfaces "Network error ...
+        // unreachable host", which reads as a dead backend rather than a
+        // malformed URL.
+        let parts = configuredValue.split(separator: ":", maxSplits: 1)
+        let host = String(parts[0])
+        let port = parts.count > 1 ? (Int(parts[1]) ?? 9099) : 9099
+        Auth.auth().useEmulator(withHost: host, port: port)
         #endif
     }
 }

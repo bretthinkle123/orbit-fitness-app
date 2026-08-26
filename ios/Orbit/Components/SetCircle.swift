@@ -26,6 +26,13 @@ struct SetCircle: View {
                 .frame(width: Self.diameter, height: Self.diameter)
                 .shadow(color: isDone ? theme.setDoneGlow : .clear, radius: Metrics.Shadow.setDoneGlowRadius)
                 .frame(minWidth: Metrics.HitTarget.minimum, minHeight: Metrics.HitTarget.minimum)
+                // The frame above reserves 44pt, but hit testing still follows
+                // the `Circle`, so the actual touch region — and the frame
+                // VoiceOver/XCUITest report — was the 36pt glyph. That is the
+                // exact gap this type's own doc comment says it closes "by
+                // `.frame(minWidth:minHeight:)`, not by growing the glyph".
+                // `contentShape` is what makes the reserved box the hit region.
+                .contentShape(Rectangle())
         }
         .buttonStyle(PressableScaleButtonStyle(scale: Metrics.Motion.avatarPressScale))
         .accessibilityLabel("Set \(setNumber), \(isDone ? "done" : "not done")")

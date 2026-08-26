@@ -25,6 +25,13 @@ struct Avatar: View {
             Button(action: action) { glyph }
                 .buttonStyle(PressableScaleButtonStyle(scale: Metrics.Motion.avatarPressScale))
                 .frame(minWidth: Metrics.HitTarget.minimum, minHeight: Metrics.HitTarget.minimum)
+                // The `minWidth`/`minHeight` above sizes the FRAME, but hit
+                // testing still follows the glyph's `Circle`, so the real
+                // tappable area (and the frame VoiceOver/XCUITest report) was
+                // the 30pt circle — measured 31pt against the 44pt minimum
+                // this type's own doc comment above promises. `contentShape`
+                // makes the padded box the hit region, delivering that promise.
+                .contentShape(Rectangle())
                 .accessibilityLabel("Open Settings")
         } else {
             glyph.accessibilityHidden(true)

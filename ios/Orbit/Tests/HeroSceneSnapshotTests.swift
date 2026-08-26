@@ -41,6 +41,11 @@ final class HeroSceneSnapshotTests: XCTestCase {
     /// this file uses the SAME one.
     private static let fixedDate = Date(timeIntervalSince1970: 0)
 
+    /// `@MainActor` because `HeroSceneState` is — reading its `scene`/
+    /// `cameraNode` from a nonisolated helper is a Swift 6 error. Every caller
+    /// in this file is already `@MainActor`, so this only makes the helper
+    /// match them.
+    @MainActor
     private func assertHeroSnapshot(
         _ state: HeroSceneState, named name: String,
         file: StaticString = #filePath, testName: String = #function, line: UInt = #line
@@ -48,7 +53,17 @@ final class HeroSceneSnapshotTests: XCTestCase {
         let view = SceneView(scene: state.scene, pointOfView: state.cameraNode, options: [])
             .frame(width: Self.size.width, height: Self.size.height)
         assertSnapshot(
-            of: view, as: .image(layout: .fixed(width: Self.size.width, height: Self.size.height)),
+            // Tolerance, not exact equality. GPU anti-aliasing and gradient
+            // dithering differ by a hair between runs: re-recording these
+            // baselines and immediately re-comparing produced images 186 bytes
+            // apart on 3.7 MB (0.005%) — visually identical, byte-unequal.
+            // The difference is sub-perceptual but spread over MANY pixels
+            // (gradient dithering across large fills), so the pixel-COUNT
+            // budget has to be the loose one: `precision: 0.999` still tipped
+            // over on one screen in one run of three. `perceptualPrecision`
+            // stays strict — every differing pixel must be perceptually
+            // indistinguishable — so a real visual regression still fails.
+            of: view, as: .image(precision: 0.99, perceptualPrecision: 0.98, layout: .fixed(width: Self.size.width, height: Self.size.height)),
             named: name, file: file, testName: testName, line: line
         )
     }

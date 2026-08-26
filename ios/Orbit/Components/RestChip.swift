@@ -26,7 +26,12 @@ struct RestChip: View {
 
     /// `m:ss` formatting (e.g. 125 → "2:05") — a pure function; Swift
     /// Testing exercises the 0/59/60/120 boundaries.
-    static func formatted(_ totalSeconds: Int) -> String {
+    // `nonisolated`: this is pure math with no view state, but it lives on a
+    // `View`, so Swift 6 isolates it to the main actor by inheritance. The
+    // Swift Testing cases that exercise it run OFF the main actor, and the
+    // isolation check traps at runtime — SIGTRAP, taking the whole test host
+    // down rather than failing one test.
+    nonisolated static func formatted(_ totalSeconds: Int) -> String {
         let clamped = max(totalSeconds, 0)
         let minutes = clamped / 60
         let seconds = clamped % 60

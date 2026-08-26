@@ -62,8 +62,99 @@ final class AuthFlowUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["OrbitAPIBaseURL"] = "http://localhost:8001"
         app.launchEnvironment["OrbitFirebaseAuthEmulatorHost"] = "localhost:9099"
+        // Start every auth test signed OUT. A Firebase session survives app
+        // relaunch AND uninstall (it lives in the simulator's device-wide
+        // Keychain), so without this the app opens on the signed-in tab shell
+        // and every one of these tests fails hunting for sign-in fields that
+        // aren't on screen. Handled by `OrbitApp.resetAuthStateIfRequested`.
+        app.launchArguments.append("-OrbitUITestResetAuth")
         app.launch()
         return app
+    }
+
+    /// Taps a text field, waits for it to actually take keyboard focus, then
+    /// types.
+    ///
+    /// `tap()` returning does not mean the field is focused — the keyboard may
+    /// still be coming up, especially on a sheet that is animating in. Typing
+    /// into an unfocused field fails with "Neither element nor any descendant
+    /// has keyboard focus" AFTER three internal retries, so it presents as a
+    /// slow, intermittent failure rather than an obvious one. Observed on the
+    /// smoke chain's weight-entry sheet.
+    static func typeInto(_ field: XCUIElement, _ text: String, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "field never appeared", file: file, line: line)
+        field.tap()
+        let focused = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hasKeyboardFocus == true"),
+            object: field
+        )
+        XCTAssertEqual(XCTWaiter().wait(for: [focused], timeout: 5), .completed,
+                       "field never took keyboard focus", file: file, line: line)
+        field.typeText(text)
+    }
+
+    /// Relaunches the app KEEPING the signed-in session.
+    ///
+    /// `launchApp()` passes `-OrbitUITestResetAuth` so each test starts signed
+    /// out, and `XCUIApplication` RETAINS its launch arguments across
+    /// relaunches — so a plain `app.terminate(); app.launch()` signs the user
+    /// out again mid-test. Any test relaunching to prove something PERSISTS
+    /// (the smoke chain's theme/units-survive-restart check) must strip the
+    /// flag first, or it lands on the sign-in screen instead of the tab shell.
+    static func relaunchPreservingSession(_ app: XCUIApplication) {
+        app.launchArguments.removeAll { $0 == "-OrbitUITestResetAuth" }
+        app.terminate()
+        app.launch()
+    }
+
+    /// Dismisses iOS's "Use Strong Password?" AutoFill sheet if it appears.
+    ///
+    /// Tapping a `.newPassword` secure field pops this sheet from a SEPARATE
+    /// process (it surfaces inside the app's element tree as a remote view).
+    /// It swallows the subsequent `typeText`, so the password never lands, the
+    /// submit button stays `Disabled`, and the tap on it silently no-ops —
+    /// XCUITest does NOT fail when you tap a disabled button. The visible
+    /// symptom is a register flow that runs green through every step and then
+    /// times out waiting for the signed-in screen, with no account ever
+    /// created. Closing the sheet keeps the app's real `.newPassword` content
+    /// type intact rather than weakening production behaviour for the tests.
+    static func dismissStrongPasswordSheetIfPresent(_ app: XCUIApplication) {
+        let closeButton = app.buttons["xmark"]
+        if closeButton.waitForExistence(timeout: 3) {
+            closeButton.tap()
+        }
+    }
+
+    /// Dismisses iOS's "Save Password?" prompt, which appears AFTER a
+    /// successful register/sign-in submit.
+    ///
+    /// Like the strong-password sheet, it is drawn by another process on top
+    /// of the app. It is especially treacherous because `waitForExistence`
+    /// still resolves elements UNDERNEATH it — so a test that only asserts
+    /// "the signed-in screen exists" passes, and the NEXT test that tries to
+    /// TAP anything fails instead, one step removed from the actual cause.
+    /// That is exactly how the smoke chain failed on its first `tab-fuel` tap
+    /// while the register test alongside it passed.
+    static func dismissSavePasswordPromptIfPresent(_ app: XCUIApplication) {
+        let notNow = app.buttons["Not Now"]
+        guard notNow.waitForExistence(timeout: 5) else { return }
+
+        // POLL rather than dismiss once. Two distinct hazards:
+        //  1. The prompt animates out, so a tap issued during that animation
+        //     still lands on the prompt — which reads as "the app ignored my
+        //     tap" one step later. Hence waiting for non-existence, not just
+        //     for the tap to be sent.
+        //  2. It can appear LATE — after the first dismissal has already
+        //     returned — and then silently swallow the next tab tap. That is
+        //     what made the muscle-row and smoke tests intermittent: each
+        //     failed on the assertion right after a tab tap, at points that
+        //     had passed in earlier runs.
+        // Dismissing repeatedly until it has stayed gone covers both.
+        for _ in 0..<3 {
+            guard notNow.exists else { break }
+            notNow.tap()
+            _ = notNow.waitForNonExistence(timeout: 5)
+        }
     }
 
     static func signIn(_ app: XCUIApplication, email: String, password: String) {
@@ -77,6 +168,7 @@ final class AuthFlowUITests: XCTestCase {
         passwordField.typeText(password)
 
         app.buttons["signin-submit"].tap()
+        dismissSavePasswordPromptIfPresent(app)
     }
 
     static func register(_ app: XCUIApplication, email: String, password: String, displayName: String = "Test Astronaut") {
@@ -93,8 +185,10 @@ final class AuthFlowUITests: XCTestCase {
 
         let passwordField = app.secureTextFields["register-password"]
         passwordField.tap()
+        dismissStrongPasswordSheetIfPresent(app)
         passwordField.typeText(password)
 
         app.buttons["register-submit"].tap()
+        dismissSavePasswordPromptIfPresent(app)
     }
 }

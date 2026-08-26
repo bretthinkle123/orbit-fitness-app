@@ -16,15 +16,11 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-import requests
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from orbit.repositories.profile import bootstrap_profile
 from orbit.schemas.profile import compute_macro_split_percentages
 from tests.conftest import run_async, run_row_query, run_scalar_query
-
-_EMULATOR_API_KEY = "fake-api-key"  # the emulator ignores this value entirely; see conftest.py
-_TEST_USER_PASSWORD = "Password123!"
 
 # Local aliases so the rest of this file reads exactly as it did before these
 # helpers were promoted to `conftest.py` (rule-of-two: `test_fuel.py` is now
@@ -280,7 +276,7 @@ def test_patch_profile_404s_before_bootstrap(client, firebase_test_user):
 # ---------------------------------------------------------------------------
 
 
-def test_profile_is_never_visible_across_owners(client, firebase_test_user, firebase_emulator):
+def test_profile_is_never_visible_across_owners(client, firebase_test_user, firebase_second_user):
     """A patches their own profile; B (a distinct principal) must see only
     their own defaults, never A's changes — there is no request parameter on
     either route that names a target account, so the only way this could
@@ -290,14 +286,7 @@ def test_profile_is_never_visible_across_owners(client, firebase_test_user, fire
     client.post("/me/bootstrap", headers=headers_a)
     client.patch("/profile", headers=headers_a, json={"palette_preset": "green", "planet_index": 5})
 
-    signup_b = requests.post(
-        f"http://{firebase_emulator}/identitytoolkit.googleapis.com/v1/accounts:signUp",
-        params={"key": _EMULATOR_API_KEY},
-        json={"email": "profile-idor-b@example.com", "password": _TEST_USER_PASSWORD, "returnSecureToken": True},
-        timeout=5,
-    )
-    signup_b.raise_for_status()
-    headers_b = _auth_header(signup_b.json()["idToken"])
+    headers_b = _auth_header(firebase_second_user()["id_token"])
 
     profile_b = client.post("/me/bootstrap", headers=headers_b).json()
     assert profile_b["palette_preset"] == "purple", "B must get their OWN default, never A's 'green'"

@@ -33,7 +33,13 @@ struct ThemeColorMathTests {
             preset: .purple,
             secondaryLight: "#e47af3",
             primaryLight: "#ae8df9",
-            primaryLighter: "#c5aefa",
+            // #c5aefb, not #c5aefa: the blue channel lands on an exact .5 tie
+            // (246 + (255-246)*0.5 = 250.5) and the prototype's own
+            // `Math.round(x + (b[i] - x) * t)` rounds that UP to 251 = 0xfb.
+            // The original fixture value rounded it down, inconsistently with
+            // the red preset's 161.5 → 162 in this same table, which does round
+            // up. Hand-computed fixture error, not an implementation bug.
+            primaryLighter: "#c5aefb",
             primaryDark: "#7a51d8",
             primaryDark2: "#6442b1",
             levelScale: ["#452d80", "#6744ba", "#8b5cf6", "#b650f2", "#e47af3", "#f7d1fd"]
@@ -42,7 +48,10 @@ struct ThemeColorMathTests {
             preset: .blue,
             secondaryLight: "#60dff3",
             primaryLight: "#76a8f9",
-            primaryLighter: "#9dc0fa",
+            // #9dc1fb, not #9dc0fa: same exact-.5 tie as the purple preset
+            // above, in BOTH the green (192.5 → 193 = 0xc1) and blue
+            // (250.5 → 251 = 0xfb) channels.
+            primaryLighter: "#9dc1fb",
             primaryDark: "#3472d8",
             primaryDark2: "#2a5eb1",
             levelScale: ["#213e80", "#2e5fba", "#3b82f6", "#2daff2", "#60dff3", "#c4dffe"]

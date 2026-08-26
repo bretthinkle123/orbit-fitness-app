@@ -58,7 +58,12 @@ struct ProgressRing: View {
     /// pure function so an over-budget (>1) or negative value never
     /// produces a malformed `.trim`. Swift Testing exercises this directly
     /// (the task's named "ProgressRing fraction clamping" math slice).
-    static func clampedFraction(_ fraction: Double) -> Double {
+    // `nonisolated`: this is pure math with no view state, but it lives on a
+    // `View`, so Swift 6 isolates it to the main actor by inheritance. The
+    // Swift Testing cases that exercise it run OFF the main actor, and the
+    // isolation check traps at runtime — SIGTRAP, taking the whole test host
+    // down rather than failing one test.
+    nonisolated static func clampedFraction(_ fraction: Double) -> Double {
         guard fraction.isFinite else { return 0 }
         return min(max(fraction, 0), 1)
     }

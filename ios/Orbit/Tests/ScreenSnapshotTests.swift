@@ -24,8 +24,14 @@ final class ScreenSnapshotTests: XCTestCase {
         return store
     }
 
+    /// `precision`/`perceptualPrecision` default to the values every screen
+    /// below is held to. They are parameters ONLY so one screen can opt into a
+    /// looser budget without dragging the other six down with it — see
+    /// `testHomeViewLoadedState`. Do not treat an overridden value as the
+    /// house standard; the defaults here are.
     private func assertScreenSnapshot(
         _ view: some View, named name: String,
+        precision: Float = 0.99, perceptualPrecision: Float = 0.98,
         file: StaticString = #filePath, testName: String = #function, line: UInt = #line
     ) {
         assertSnapshot(
@@ -50,35 +56,79 @@ final class ScreenSnapshotTests: XCTestCase {
                 // stub), since Reduce Motion is a genuine, supported user
                 // setting these same screens must render correctly under
                 // regardless (AC30).
-                .environment(\.accessibilityReduceMotion, true),
-            as: .image(layout: .fixed(width: 402, height: 874)),
+                .environment(\.reduceMotionOverride, true)
+                // Exclude the live SceneKit hero: its transparency does not
+                // survive SwiftUI's offscreen render, so a recorded baseline
+                // would show a WHITE block where the app actually composites
+                // the planet over the starfield — and the GPU render is not
+                // bit-stable between runs either. The scene itself is covered
+                // directly by `HeroSceneSnapshotTests`; these cases cover
+                // everything around it.
+                .environment(\.heroSceneRenderingEnabled, false),
+            // Tolerance, not exact equality. GPU anti-aliasing and gradient
+            // dithering differ by a hair between runs: re-recording these
+            // baselines and immediately re-comparing produced images 186 bytes
+            // apart on 3.7 MB (0.005%) — visually identical, byte-unequal.
+            // The difference is sub-perceptual but spread over MANY pixels
+            // (gradient dithering across large fills), so the pixel-COUNT
+            // budget has to be the loose one: `precision: 0.999` still tipped
+            // over on one screen in one run of three. `perceptualPrecision`
+            // stays strict — every differing pixel must be perceptually
+            // indistinguishable — so a real visual regression still fails.
+            as: .image(precision: precision, perceptualPrecision: perceptualPrecision, layout: .fixed(width: 402, height: 874)),
             named: name, file: file, testName: testName, line: line
         )
     }
 
     @MainActor
-    func testHomeViewLoadedState() async {
+    func testHomeViewLoadedState() async throws {
         let store = await makeLoadedStore()
         assertScreenSnapshot(
-            HomeView(store: store, authService: MockAuthService(), onOpenSettings: {}, onStartPushDay: {}),
-            named: "loaded"
+            HomeView(store: store, authService: MockAuthService(), onOpenSettings: {}, onStartPushDay: {})
+                // Home's greeting is the one element NOT derived from the
+                // store's pinned `dayKey` — it buckets the WALL-CLOCK hour, so
+                // an unpinned baseline only matches when re-run in the same
+                // time-of-day bucket it was recorded in. Pin it (9 → "Good
+                // morning") so this baseline is stable at any hour.
+                .environment(\.greetingHourOverride, 9),
+            named: "loaded",
+            // WHAT: Home alone runs a looser budget than the 0.99/0.98 every
+            // other screen here is held to.
+            //
+            // WHY: on this Mac, recording a Home baseline and immediately
+            // re-comparing it IN THE SAME BUILD lands at 0.9874 pixel /
+            // 0.9720 perceptual — under both defaults, on images that are
+            // visually indistinguishable side by side. It is not the greeting
+            // (pinned above) and not the hero (excluded below): sampling a
+            // nebula-heavy region and a flat card region found BOTH differ, so
+            // the dithering is spread across the whole render rather than
+            // localised to one layer — Home is simply the largest, most
+            // gradient-dense screen, so it trips first.
+            //
+            // 0.97/0.96 rather than a hair under the measured values, because
+            // 0.98 would leave only 0.0074 of margin and drift straight back
+            // to red. A real visual regression — moved card, wrong palette,
+            // dropped element — is far larger than 3% of pixels and still
+            // fails. If Home ever renders deterministically here, delete these
+            // two arguments and let it inherit the strict defaults again.
+            precision: 0.97, perceptualPrecision: 0.96
         )
     }
 
     @MainActor
-    func testFuelViewLoadedState() async {
+    func testFuelViewLoadedState() async throws {
         let store = await makeLoadedStore()
         assertScreenSnapshot(FuelView(store: store), named: "loaded")
     }
 
     @MainActor
-    func testTrainViewLoadedState() async {
+    func testTrainViewLoadedState() async throws {
         let store = await makeLoadedStore()
         assertScreenSnapshot(TrainView(store: store), named: "loaded")
     }
 
     @MainActor
-    func testBodyViewLoadedState() async {
+    func testBodyViewLoadedState() async throws {
         let store = await makeLoadedStore()
         assertScreenSnapshot(BodyView(store: store), named: "loaded")
     }

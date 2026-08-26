@@ -25,7 +25,14 @@ struct MuscleFigure: View {
     let isTrainedToday: (MuscleGroupToken) -> Bool
     var theme = Theme()
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @Environment(\.reduceMotionOverride) private var reduceMotionOverride
+    /// Resolved through `MotionPreference` so the snapshot suites can force
+    /// Reduce Motion ON: the system key is read-only in the SDK, so tests
+    /// write `reduceMotionOverride` instead.
+    private var reduceMotion: Bool {
+        MotionPreference.resolvedReduceMotion(system: systemReduceMotion, override: reduceMotionOverride)
+    }
     @State private var floatOffset: CGFloat = 0
 
     /// Midpoint of the design's "~5.5-6s" float-loop range (design-spec

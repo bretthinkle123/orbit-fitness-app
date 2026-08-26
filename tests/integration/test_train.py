@@ -10,13 +10,27 @@ import asyncio
 import datetime
 
 import pytest
-import requests
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from orbit.repositories.train import mark_set_done
 from tests.conftest import run_row_query, run_scalar_query
 
-_TODAY = datetime.date.today()
+def _most_recent_wednesday(today: datetime.date) -> datetime.date:
+    """The Wednesday on or before `today`.
+
+    These tests anchor to a mid-week day rather than to the real `today` so
+    that `_YESTERDAY` is always in the SAME ISO week as `_TODAY`. With a bare
+    `date.today()`, a Monday run put `_YESTERDAY` on the preceding Sunday —
+    the previous week under the API's Monday-start bounds (`routes/train.py`
+    `_week_bounds`) — and `test_mark_set_done_only_counts_the_requested_day`
+    failed one day in seven. Pinning the weekday is safe because the API
+    derives every week/day computation from the `day_key` the client sends,
+    never from the server clock (`schemas/train.py`).
+    """
+    return today - datetime.timedelta(days=(today.weekday() - 2) % 7)
+
+
+_TODAY = _most_recent_wednesday(datetime.date.today())
 _YESTERDAY = _TODAY - datetime.timedelta(days=1)
 
 
@@ -358,7 +372,7 @@ def test_delete_set_event_rejects_an_unknown_exercise_id(client, firebase_test_u
 
 
 def test_cross_owner_cannot_unmark_anothers_set_and_day_view_stays_empty(
-    client, firebase_test_user, firebase_emulator, postgres_url
+    client, firebase_test_user, firebase_second_user, postgres_url
 ):
     """A marks a set; B (a distinct, bootstrapped principal) cannot unmark
     A's row (B's identical-looking DELETE only ever scopes to B's OWN,
@@ -379,14 +393,7 @@ def test_cross_owner_cannot_unmark_anothers_set_and_day_view_stays_empty(
     )
     assert mark_response.status_code == 200
 
-    signup_b = requests.post(
-        f"http://{firebase_emulator}/identitytoolkit.googleapis.com/v1/accounts:signUp",
-        params={"key": "fake-api-key"},
-        json={"email": "train-idor-b@example.com", "password": "Password123!", "returnSecureToken": True},
-        timeout=5,
-    )
-    signup_b.raise_for_status()
-    headers_b = _auth_header(signup_b.json()["idToken"])
+    headers_b = _auth_header(firebase_second_user()["id_token"])
     _bootstrap(client, headers_b)
 
     delete_as_b = client.request(

@@ -79,9 +79,24 @@ final class AccessibilityTests: XCTestCase {
     private func toggleSystemReduceMotion(to isOn: Bool) {
         let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
         settings.launch()
-        settings.tables.staticTexts["Accessibility"].tap()
-        settings.tables.staticTexts["Motion"].tap()
-        let reduceMotionSwitch = settings.tables.switches["Reduce Motion"]
+        // NOT `settings.tables...` — the anticipated drift (see the doc comment
+        // above) arrived: iOS 26's Settings is built from collection views, so
+        // every `tables` descendant query matches nothing and the run fails
+        // with "No matches found for Descendants matching type Table". Querying
+        // the app directly works across both layouts.
+        let accessibilityRow = settings.staticTexts["Accessibility"]
+        guard accessibilityRow.waitForExistence(timeout: 10) else {
+            XCTFail("Settings app never showed its Accessibility row — navigation path drifted again")
+            return
+        }
+        accessibilityRow.tap()
+        let motionRow = settings.staticTexts["Motion"]
+        guard motionRow.waitForExistence(timeout: 10) else {
+            XCTFail("Settings > Accessibility never showed its Motion row — navigation path drifted again")
+            return
+        }
+        motionRow.tap()
+        let reduceMotionSwitch = settings.switches["Reduce Motion"]
         if reduceMotionSwitch.waitForExistence(timeout: 5), let currentValue = reduceMotionSwitch.value as? String {
             let isCurrentlyOn = currentValue == "1"
             if isCurrentlyOn != isOn {
@@ -142,7 +157,7 @@ final class AccessibilityTests: XCTestCase {
         XCTAssertTrue(app.buttons["home-avatar-settings-button"].waitForExistence(timeout: 10))
 
         app.buttons["tab-body"].tap()
-        let chestRow = app.otherElements["body-muscle-row-chest"]
+        let chestRow = app.staticTexts["body-muscle-row-chest"]
         XCTAssertTrue(chestRow.waitForExistence(timeout: 10))
         XCTAssertFalse(chestRow.label.contains("trained today"))
         XCTAssertTrue(chestRow.label.hasPrefix("Chest, "))

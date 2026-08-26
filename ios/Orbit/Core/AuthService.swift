@@ -15,6 +15,12 @@ extension LiveAPIClient: RemoteSessionInvalidating {}
 /// The identity/session facade every screen and `APIClient` (via
 /// `BearerTokenProviding`) depends on — the ONE place that imports
 /// `FirebaseAuth` directly.
+///
+/// `@MainActor` for the same reason as `BearerTokenProviding` (see its note):
+/// the conformers are main-actor-confined, and every consumer here is already
+/// on the main actor anyway — each is a SwiftUI view holding
+/// `let authService: AuthServiceProtocol`.
+@MainActor
 protocol AuthServiceProtocol: BearerTokenProviding {
     /// Creates a new Firebase account and signs in as it in one step
     /// (register → immediately authenticated, per plan §Frontend's
@@ -145,7 +151,11 @@ final class FirebaseAuthService: AuthServiceProtocol, Sendable {
     /// Fetches and caches a fresh token right after register/sign-in/
     /// reauthenticate, so `KeychainTokenStore` never briefly holds a stale
     /// value from a previous session.
-    private func cacheFreshToken(for user: User, forcingRefresh: Bool = false) async throws {
+    /// `sending` because Firebase's `User` is not `Sendable`: awaiting
+    /// `getIDToken` hands the instance to the SDK's own executor, so the
+    /// compiler must know the caller keeps no reference it could race against.
+    /// Every caller passes a `result.user` it does not touch afterward.
+    private func cacheFreshToken(for user: sending User, forcingRefresh: Bool = false) async throws {
         let token = try await user.getIDToken(forcingRefresh: forcingRefresh)
         try tokenStore.save(token: token)
     }

@@ -9,7 +9,6 @@ import asyncio
 import datetime
 
 import pytest
-import requests
 
 from tests.conftest import run_row_query
 
@@ -139,21 +138,14 @@ def test_trained_today_is_day_scoped(client, firebase_test_user, postgres_url):
     assert trained_yesterday == {"chest"}
 
 
-def test_body_trained_today_never_crosses_owners(client, firebase_test_user, firebase_emulator, postgres_url):
+def test_body_trained_today_never_crosses_owners(client, firebase_test_user, firebase_second_user, postgres_url):
     """A trains chest; B (a distinct, bootstrapped principal) must see their
     OWN untrained Body view, never A's glow."""
     headers_a = _auth_header(firebase_test_user["id_token"])
     _bootstrap(client, headers_a)
     _mark_set(client, headers_a, _exercise_id_for(postgres_url, "Barbell Bench Press"), _TODAY)
 
-    signup_b = requests.post(
-        f"http://{firebase_emulator}/identitytoolkit.googleapis.com/v1/accounts:signUp",
-        params={"key": "fake-api-key"},
-        json={"email": "body-idor-b@example.com", "password": "Password123!", "returnSecureToken": True},
-        timeout=5,
-    )
-    signup_b.raise_for_status()
-    headers_b = _auth_header(signup_b.json()["idToken"])
+    headers_b = _auth_header(firebase_second_user()["id_token"])
     _bootstrap(client, headers_b)
 
     body_b = client.get(f"/body?day_key={_TODAY.isoformat()}", headers=headers_b).json()

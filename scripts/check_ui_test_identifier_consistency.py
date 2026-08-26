@@ -77,6 +77,18 @@ MATCHING_IDENTIFIER_PATTERN = re.compile(r'matching\(identifier:\s*"([^"]+)"\)')
 # the real Swift literal it maps to, so a future reviewer can re-grep and
 # confirm it's still accurate rather than trusting this comment blindly.
 KNOWN_NATIVE_LABEL_SELECTORS = {
+    # iOS Password AutoFill chrome, drawn by a SEPARATE system process on top
+    # of the app during the auth flows (verified against the captured UI
+    # hierarchy in an XCUITest failure this session, where both appear under a
+    # different pid than the app's). Neither can carry an app-declared
+    # identifier, so both are looked up by the system's own strings:
+    #   - "xmark"   — the Close button on the "Use Strong Password?" sheet,
+    #                 which otherwise swallows the typed password.
+    #   - "Not Now" — the dismiss button on the "Save Password?" prompt, which
+    #                 otherwise swallows the first tap after a submit.
+    # Both are dismissed in `Tests/UITests/AuthFlowUITests.swift`'s helpers.
+    "xmark": 'AuthFlowUITests.dismissStrongPasswordSheetIfPresent: Close button on the system "Use Strong Password?" sheet',
+    "Not Now": 'AuthFlowUITests.dismissSavePasswordPromptIfPresent: dismiss button on the system "Save Password?" prompt',
     # T17: `App/RootTabView.swift`'s native `TabView`/`.tabItem` chrome was
     # REPLACED by `Components/GlassTabBar` (the fidelity-debt closure this
     # task's own scope names) — every tab-switch selector now queries a real

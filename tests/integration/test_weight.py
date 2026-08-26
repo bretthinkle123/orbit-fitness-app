@@ -10,7 +10,6 @@ import asyncio
 import datetime
 
 import pytest
-import requests
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -234,18 +233,11 @@ def test_weekly_delta_is_null_without_a_weeks_history(client, firebase_test_user
 # ---------------------------------------------------------------------------
 
 
-def test_weight_window_never_crosses_owners(client, firebase_test_user, firebase_emulator, postgres_url):
+def test_weight_window_never_crosses_owners(client, firebase_test_user, firebase_second_user, postgres_url):
     headers_a = _auth_header(firebase_test_user["id_token"])
     assert _create_weight(client, headers_a, 91.4).status_code == 201
 
-    signup_b = requests.post(
-        f"http://{firebase_emulator}/identitytoolkit.googleapis.com/v1/accounts:signUp",
-        params={"key": "fake-api-key"},
-        json={"email": "weight-idor-b@example.com", "password": "Password123!", "returnSecureToken": True},
-        timeout=5,
-    )
-    signup_b.raise_for_status()
-    headers_b = _auth_header(signup_b.json()["idToken"])
+    headers_b = _auth_header(firebase_second_user()["id_token"])
 
     window_b = client.get("/weight", headers=headers_b).json()
     assert window_b == {"entries": [], "latest": None, "weekly_delta_kg": None}

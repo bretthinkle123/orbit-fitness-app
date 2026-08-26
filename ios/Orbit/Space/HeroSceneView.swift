@@ -31,17 +31,26 @@ struct HeroScrollProgress: Equatable, Sendable {
 }
 
 private struct HeroScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    // `let`, not `var`: a mutable static is nonisolated global shared mutable
+    // state, which Swift 6 rejects. `PreferenceKey.defaultValue` is a
+    // get-only requirement, so a constant satisfies it.
+    static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
 private struct HeroContentHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    // `let`, not `var`: a mutable static is nonisolated global shared mutable
+    // state, which Swift 6 rejects. `PreferenceKey.defaultValue` is a
+    // get-only requirement, so a constant satisfies it.
+    static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
 private struct HeroViewportHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    // `let`, not `var`: a mutable static is nonisolated global shared mutable
+    // state, which Swift 6 rejects. `PreferenceKey.defaultValue` is a
+    // get-only requirement, so a constant satisfies it.
+    static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
@@ -330,7 +339,16 @@ struct HeroSceneLiveInputs: Equatable {
 /// steady-state scale formula is complete and live.
 @MainActor
 final class HeroSceneState {
-    let scene = SCNScene()
+    /// A default `SCNScene`'s background renders opaque, which would paint
+    /// over the `StarfieldView` at z0 beneath the hero in `HomeView`'s ZStack.
+    /// Clearing it is NECESSARY but NOT SUFFICIENT — the hosting view has to
+    /// be non-opaque too, which is why the hero is rendered by
+    /// `TransparentSceneView` rather than SwiftUI's `SceneView`.
+    let scene: SCNScene = {
+        let scene = SCNScene()
+        scene.background.contents = UIColor.clear
+        return scene
+    }()
     let cameraNode: SCNNode
 
     private let kind: HeroSceneKind
@@ -719,13 +737,51 @@ private extension HeroSceneKind {
 /// none) layers ABOVE its `StarfieldView` and BELOW its scrolling content —
 /// `TimelineView(.animation)` drives `HeroSceneState.tick`, mirroring
 /// `Space/StarfieldView.swift`'s own architecture (T17).
+#if DEBUG
+private struct HeroSceneRenderingEnabledKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+extension EnvironmentValues {
+    /// Snapshot-test seam: set to `false` to render the hero as transparent
+    /// space instead of hosting the live `SCNView`.
+    ///
+    /// Needed because SceneKit's transparency does NOT survive SwiftUI's
+    /// OFFSCREEN image render. On a device the hero composites correctly over
+    /// the starfield, but a recorded snapshot of the same screen shows the
+    /// hero region as a WHITE block — the very bug this file fixed for the
+    /// live app. Recording that as a baseline would enshrine an image the app
+    /// never actually shows. The scene's own appearance is covered separately
+    /// and directly by `Tests/HeroSceneSnapshotTests.swift`; excluding it here
+    /// lets the four hero-bearing SCREEN snapshots cover everything else —
+    /// cards, macros, palette, layout — deterministically and correctly.
+    ///
+    /// `#if DEBUG` so no test seam exists in release source (AC32/SC-7), the
+    /// same posture as `OrbitApp.resetAuthStateIfRequested`.
+    var heroSceneRenderingEnabled: Bool {
+        get { self[HeroSceneRenderingEnabledKey.self] }
+        set { self[HeroSceneRenderingEnabledKey.self] = newValue }
+    }
+}
+#endif
+
 struct HeroSceneView: View {
     let kind: HeroSceneKind
     let theme: Theme
     let scrollProgress: Double
     var liveInputs: HeroSceneLiveInputs = HeroSceneLiveInputs()
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @Environment(\.reduceMotionOverride) private var reduceMotionOverride
+    #if DEBUG
+    @Environment(\.heroSceneRenderingEnabled) private var heroSceneRenderingEnabled
+    #endif
+    /// Resolved through `MotionPreference` so the snapshot suites can force
+    /// Reduce Motion ON: the system key is read-only in the SDK, so tests
+    /// write `reduceMotionOverride` instead.
+    private var reduceMotion: Bool {
+        MotionPreference.resolvedReduceMotion(system: systemReduceMotion, override: reduceMotionOverride)
+    }
     @State private var sceneState: HeroSceneState
 
     init(kind: HeroSceneKind, theme: Theme, scrollProgress: Double, liveInputs: HeroSceneLiveInputs = HeroSceneLiveInputs()) {
@@ -752,9 +808,61 @@ struct HeroSceneView: View {
         .accessibilityHidden(true)
     }
 
+    @ViewBuilder
     private func heroContent(at date: Date) -> some View {
         let motionAllowed = MotionPreference.repeatingAnimationsAllowed(reduceMotion: reduceMotion)
-        sceneState.tick(to: date, scrollTarget: scrollProgress, motionAllowed: motionAllowed, liveInputs: liveInputs)
-        return SceneView(scene: sceneState.scene, pointOfView: sceneState.cameraNode, options: [])
+        let _ = sceneState.tick(to: date, scrollTarget: scrollProgress, motionAllowed: motionAllowed, liveInputs: liveInputs)
+        #if DEBUG
+        if heroSceneRenderingEnabled {
+            TransparentSceneView(scene: sceneState.scene, pointOfView: sceneState.cameraNode)
+        } else {
+            // Hero omitted for offscreen snapshot rendering — see
+            // `EnvironmentValues.heroSceneRenderingEnabled`. Transparent, so
+            // the starfield at z0 shows through exactly as it does in the gap
+            // around the planet on a real device.
+            Color.clear
+        }
+        #else
+        TransparentSceneView(scene: sceneState.scene, pointOfView: sceneState.cameraNode)
+        #endif
+    }
+}
+
+/// Hosts `SCNView` directly instead of using SwiftUI's `SceneView`.
+///
+/// `SceneView` always renders through an OPAQUE backing view and exposes no
+/// knob to change that, so it paints a solid block over the `StarfieldView`
+/// at z0 beneath it — the hero region rendered as a white band with the
+/// greeting text invisible inside it. Clearing `scene.background` alone does
+/// NOT fix that: the opacity lives on the view, not the scene. Hosting
+/// `SCNView` is the only way to get `isOpaque = false` together with a clear
+/// background colour, which is what the design's ZStack recipe (starfield z0
+/// → 3D hero z1 → content) requires.
+private struct TransparentSceneView: UIViewRepresentable {
+    let scene: SCNScene
+    let pointOfView: SCNNode
+
+    func makeUIView(context: Context) -> SCNView {
+        let view = SCNView()
+        view.scene = scene
+        view.pointOfView = pointOfView
+        view.backgroundColor = .clear
+        view.isOpaque = false
+        // The enclosing `TimelineView(.animation)` advances the scene by
+        // calling `HeroSceneState.tick(to:)` every frame, so the view must
+        // redraw every frame too rather than only when SceneKit itself
+        // decides something changed.
+        view.rendersContinuously = true
+        view.antialiasingMode = .multisampling2X
+        return view
+    }
+
+    func updateUIView(_ uiView: SCNView, context: Context) {
+        if uiView.scene !== scene {
+            uiView.scene = scene
+        }
+        if uiView.pointOfView !== pointOfView {
+            uiView.pointOfView = pointOfView
+        }
     }
 }
