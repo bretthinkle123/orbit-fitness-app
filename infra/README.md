@@ -39,7 +39,7 @@ there is no compute here to attach it to yet.
   (166 passed / 0 failed / 26 documented skips this run).
 - Egress on the `db`/`redis` security groups is intentionally left unrestricted for now
   (Trivy `AWS-0104`, accepted risk — see `.trivyignore` and
-  `.pipeline/security-report.md`): narrowing it needs a NAT/VPC-endpoint topology that
+  `docs/decisions/feature/greenfield/security-report.md`): narrowing it needs a NAT/VPC-endpoint topology that
   doesn't exist until compute lands.
 - `terraform apply` never runs in this pipeline — only in CI (`deploy.yml`), after
   merge, and only once `DEPLOY_ENABLED` is set.

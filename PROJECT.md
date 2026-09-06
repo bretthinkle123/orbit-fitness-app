@@ -9,10 +9,14 @@ food logging), native iOS (SwiftUI) over a Python backend. This build is the **g
 run**: the full feature set depicted in the Claude Design export, end-to-end — real auth,
 real persistence, CI gate, deploy path — so future feature-runs extend a working app.
 
-Authoritative brief: `.pipeline/requirements.md` (operator-revised 2026-07-14).
-Scope audit of the design: `.pipeline/design-audit.md`. Planning treats requirements.md
-as source of truth and must emit `.pipeline/tasks.md` (this is well over the 8-file
-threshold), staging visual fidelity (starfield/3D) after core function.
+Authoritative brief: `docs/decisions/feature/greenfield/requirements.md` (operator-revised
+2026-07-14). Scope audit of the design:
+`docs/decisions/feature/greenfield/design-audit.md`. Planning treated requirements.md as
+source of truth and emitted a task decomposition
+(`docs/decisions/feature/greenfield/tasks.md` — this is well over the 8-file threshold),
+staging visual fidelity (starfield/3D) after core function. Each ran from `.pipeline/`
+during the run and was retained at closeout; see
+`docs/decisions/feature/greenfield/README.md`.
 
 ## This build (greenfield scope)
 1. **Foundation** — Firebase email/password auth (verify ID token, `require_auth`),

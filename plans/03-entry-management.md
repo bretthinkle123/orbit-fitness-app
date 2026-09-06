@@ -25,6 +25,10 @@ food-entry creates are non-idempotent and nothing below account erasure is delet
 ## Data & schema touchpoints
 Idempotency: `UNIQUE(owner_uid, idempotency_key)` on the two tables (nullable column;
 TTL cleanup not needed at day-key scale) — or a shared keys table; decide in-run.
+**If the shared-keys-table option wins, this becomes the first run to add an owner-scoped
+table** and therefore owns building the owner_uid-table registry + its export∪erase parity
+test, and adding the table to the `erase.py` cascade and the AC5 erasure test (roadmap
+standing rule 1). The nullable-column option carries no such obligation.
 Deletes are hard deletes (consistent with the no-soft-delete lifecycle posture).
 
 ## Security / compliance notes

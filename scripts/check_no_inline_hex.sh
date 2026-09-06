@@ -11,7 +11,7 @@
 # is "the same color as the theme" (that's what `ThemeTests.swift`'s blend-math
 # assertions verify), only whether one appears at all outside the one directory
 # allowed to define them. Run on the operator's Mac alongside the Swift test
-# suite (`.pipeline/implementation-progress.md` T11 entry: authored, not run,
+# suite (`docs/decisions/feature/greenfield/implementation-progress.md` T11 entry: authored, not run,
 # on this Linux host — no Swift files exist to violate the rule yet beyond
 # DesignSystem itself, so this script is the only part of AC28's grep clause
 # actually exercised here).

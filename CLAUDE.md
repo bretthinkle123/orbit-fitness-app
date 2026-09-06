@@ -6,10 +6,23 @@ Apple's 30-char name limit). "Orbit" stays the short brand name, the home-screen
 label (CFBundleDisplayName — long names truncate on device), and the internal identifier
 (`src/orbit/` package, bundle-id stem, design-export paths).
 Greenfield run = the full feature set depicted in the Claude Design export, end-to-end.
-Authoritative brief: `.pipeline/requirements.md`; design scope audit:
-`.pipeline/design-audit.md`; scope summary: `PROJECT.md`; future-runs roadmap:
-`docs/roadmap.md` (ordered run list; per-run planning briefs in `plans/`, read by
-requirements-elicitation/planning at the start of each future run).
+Authoritative brief: `docs/decisions/feature/greenfield/requirements.md`; design scope
+audit: `docs/decisions/feature/greenfield/design-audit.md`; scope summary: `PROJECT.md`;
+future-runs roadmap: `docs/roadmap.md` (ordered run list; per-run planning briefs in
+`plans/`, read by requirements-elicitation/planning at the start of each future run).
+
+**Run artifacts:** a run's live artifacts (`requirements.md`, `plan.md`, `tasks.md`,
+reports) are written to a gitignored `.pipeline/` that does not survive a clone and that
+the NEXT run overwrites. At closeout, retain the durable ones under
+`docs/decisions/feature/<feature>/` — see that directory's README for the set and the
+rationale. Cite the retained path in docs, never the `.pipeline/` one.
+
+**Private notes:** `private-docs/` is the owner's gitignored space for personal
+deep-dive write-ups of internal mechanisms, kept off GitHub on purpose. Write there only
+when asked to. It does not survive a clone, so nothing in the build, the test suites, CI,
+or the committed docs may read from or cite it — anything another machine or contributor
+needs belongs in `docs/` instead. Treat its contents as private: never copy them into a
+committed file, a PR description, or anything else that leaves this machine.
 
 ## Stack
 - Cloud environment: AWS (infra as/if deploy path requires).
@@ -34,7 +47,10 @@ requirements-elicitation/planning at the start of each future run).
 ## How to run / build / test
 - Start (backend): `python -m uvicorn src.orbit.main:app --port 8000`
   (smoke check expects HTTP 200 at `http://localhost:8000/health`)
-- Test (backend): `pytest --cov=src` (threshold >= 80%)
+- Test (backend): `pytest --cov=src --cov-fail-under=80` (threshold >= 80%; there are no
+  `addopts` in `pyproject.toml`, so the flag is required to actually enforce it locally —
+  CI passes it explicitly). Integration tests need the Firebase Auth emulator on port
+  9099 free; another project's emulator squatting there fails the suite with 401s.
 - Migrate: `alembic upgrade head`
 - iOS: Swift toolchain + XCTest (reduced assurance; see Stack notes).
 - Deploy: CI on merge — `.github/workflows/`; ci-conventions + delivery-conventions.
