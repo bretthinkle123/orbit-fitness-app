@@ -2,7 +2,7 @@
 
 **Status: not yet bundled.** This Linux build host has no network path this session was
 authorized to use for fetching font binaries, and no Swift/Xcode toolchain to embed or
-verify them anyway (`.pipeline/implementation-progress.md`'s T11 entry). Per plan.md's
+verify them anyway (`docs/decisions/feature/greenfield/implementation-progress.md`'s T11 entry). Per plan.md's
 Open Question 6 default, the app runs correctly without these files: `DesignSystem/
 Font+Theme.swift`'s `OrbitFontFamily.isEmbedded` checks at runtime whether each family's
 `.ttf` is actually registered and falls back automatically to the recorded SF substitute

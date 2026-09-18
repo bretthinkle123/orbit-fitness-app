@@ -253,3 +253,11 @@ ios/**/*.xcuserstate
 # suites are advisory-only, never a gate. Each machine records its own on the
 # first run — see docs/mac-session-handoff.md.
 ios/Orbit/Tests/__Snapshots__/
+
+# Personal working notes — deliberately NEVER committed. This is the owner's
+# private space for extremely detailed internal-mechanism write-ups kept off
+# GitHub on purpose. The pattern is intentionally UNANCHORED so a
+# `private-docs/` at ANY depth is ignored, not just the one at the repo root.
+# Nothing in the build, the test suites, or CI may read from here — anything
+# another machine or another contributor needs belongs in docs/ instead.
+private-docs/

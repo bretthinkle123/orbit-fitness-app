@@ -10,7 +10,8 @@ test: XCUITest just times out waiting for an element that was never going to
 appear, which reads as "the feature is broken" rather than "the test has a
 typo." This script is the mechanical half of that check this Linux host CAN
 actually run (no Swift toolchain — the Swift COMPILING is the other half,
-Mac-execution-only, `.pipeline/implementation-progress.md`'s T11 entry).
+Mac-execution-only,
+`docs/decisions/feature/greenfield/implementation-progress.md`'s T11 entry).
 
 Two identifier sources feed the comparison:
 

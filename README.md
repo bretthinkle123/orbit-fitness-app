@@ -10,9 +10,9 @@ export (`design/design_handoff_orbit_swiftui/`), end-to-end — real auth, real
 persistence, CI gate, deploy path.
 
 - Product scope: `PROJECT.md`
-- Authoritative brief: `.pipeline/requirements.md`
-- Full plan + threat model: `.pipeline/plan.md` (retained for this branch at
-  `docs/decisions/feature/greenfield/plan.md`)
+- Authoritative brief, full plan + threat model, acceptance criteria, security report and
+  the rest of the greenfield run record: `docs/decisions/feature/greenfield/`
+  (start with that directory's `README.md`)
 - Future-runs roadmap: `docs/roadmap.md`; per-run briefs: `plans/`
 - System architecture + diagrams: `docs/system_architecture.md`
 
@@ -49,6 +49,7 @@ coverage.
 | `scripts/` | Operational + CI helper scripts — see `scripts/README.md` |
 | `design/design_handoff_orbit_swiftui/` | Vendored Claude Design export (reference only; never built into the app) |
 | `docs/` | `system_architecture.md`, `roadmap.md`, `finding-ledger.md` |
+| `docs/decisions/feature/<feature>/` | Per-run retained pipeline record (brief, plan + threat model, acceptance criteria, security report, PR description) — start at its `README.md` |
 | `plans/` | Per-future-run planning briefs |
 | `.github/workflows/` | CI merge gate, deploy pipeline, DAST/provenance workflows |
 
@@ -108,8 +109,14 @@ CI is scaffolded in `.github/workflows/`:
 
 **Outstanding deploy-time obligation:** enable the Firebase Authentication password
 policy for the project (ASVS `6.2.x`, waived conditionally this run — see
-`.pipeline/security-report.md` / `docs/decisions/feature/greenfield/security-report.md`
-and `plans/01-production-deploy-path.md`).
+`docs/decisions/feature/greenfield/security-report.md` and
+`plans/01-production-deploy-path.md`).
+
+**Waivers do not travel with a clone.** The human-recorded ASVS waivers (`6.3.3`,
+`6.2.x`) live in gitignored `.pipeline/waivers.json` by design — creating one is
+TTY-only and human-only. On a fresh clone (including the operator's Mac) they are absent
+and the next run's security stage will re-block on both until a human re-records them
+with `record-waiver.sh`.
 
 ## How to contribute
 
@@ -119,6 +126,7 @@ and `plans/01-production-deploy-path.md`).
 - iOS follows the module decomposition in `ios/Orbit/README.md`; theme colors always
   route through `DesignSystem/Theme.swift` — never a second hex literal.
 - Facades only for auth/logging/secrets/crypto — no direct SDK calls elsewhere.
-- Read `.pipeline/plan.md` (retained at
-  `docs/decisions/feature/greenfield/plan.md`) before extending the API surface; it
+- Read `docs/decisions/feature/greenfield/plan.md` before extending the API surface; it
   carries the STRIDE threat model and the ASVS reconciliation this build is held to.
+  `docs/roadmap.md`'s standing rules bind every future run (erasure/export parity,
+  classification pass, the standard adversarial endpoint shapes).

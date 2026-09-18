@@ -5,8 +5,8 @@
 
 This is the **greenfield** architecture: native SwiftUI iOS client → FastAPI backend →
 PostgreSQL, fronted by Firebase Auth, on an AWS data-security baseline (compute deferred).
-See `.pipeline/plan.md` (retained at `docs/decisions/feature/greenfield/plan.md`) for the
-full STRIDE threat model this architecture is held to.
+See `docs/decisions/feature/greenfield/plan.md` for the full STRIDE threat model this
+architecture is held to.
 
 ## 1. System context
 
@@ -68,7 +68,6 @@ erDiagram
     PROFILES ||--o{ WEIGHT_ENTRIES : "owner_uid"
     PROGRAMS ||--|{ EXERCISES : "program_id"
     EXERCISES ||--o{ SET_EVENTS : "exercise_id"
-    QUICK_FOODS ||--o{ FOOD_ENTRIES : "quick_food_id (optional)"
 
     PROFILES {
         string owner_uid PK
@@ -145,6 +144,12 @@ the plan's literal 9-table list (see `migrations/README.md`). `QUICK_FOODS`,
 no owner; every other table carries `owner_uid` and is scoped + bounded
 (`food_entries` ≤200/day, `weight_entries` 30-day window, both hard `LIMIT`s) at the
 repository layer.
+
+**`QUICK_FOODS` deliberately has no edge to `FOOD_ENTRIES`.** A quick-add copies the
+catalog row's name and macros into the entry at logging time; `food_entries` carries no
+`quick_food_id` column and no FK (`repositories/fuel.py`). The persisted entry is a
+**snapshot**, so re-pricing or correcting a catalog row never retroactively rewrites what
+a user already logged — and an entry survives its catalog row being removed.
 
 ## 4. Deployment topology
 

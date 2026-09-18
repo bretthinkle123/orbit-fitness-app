@@ -1,0 +1,75 @@
+{
+  "status": "clean",
+  "critical_count": 0,
+  "warning_count": 29,
+  "fixed_count": 4,
+  "total_findings": 33,
+  "ran_at": "2026-07-26T00:35:36Z",
+  "scope": "diff",
+  "since_commit": "cd6e7ed79c457b73be07587d342b894d981cac0e",
+  "scanned_change_hash": "1e729347ee6545acf94997f0e468e7eff80fd6d1ed501d9308b2cd9064c04fad",
+  "stride_mechanisms_verified": 18,
+  "stride_mechanisms_missing": 0,
+  "stride_new_threats": 0,
+  "asvs": {
+    "l1_l2_universal": true,
+    "in_scope_l3": [],
+    "triggered_chapters": [
+      "V1",
+      "V2",
+      "V4",
+      "V6",
+      "V7",
+      "V8",
+      "V9",
+      "V11",
+      "V12",
+      "V13",
+      "V14",
+      "V15",
+      "V16"
+    ],
+    "reqs_verified": 41,
+    "l1_l2_missing": [],
+    "l3_in_scope_missing": [],
+    "doc_advisory": [
+      "1.1.x",
+      "2.1.x",
+      "6.1.x",
+      "8.1.x",
+      "13.1.x",
+      "16.1.x"
+    ],
+    "waivers": [
+      "6.3.3",
+      "6.2.x"
+    ],
+    "reconciled": true
+  },
+  "osv_findings": 0,
+  "osv_max_cvss": 0,
+  "osv_waiver": null,
+  "semgrep_findings": 23,
+  "checkov_findings": 0,
+  "trivy_findings": 0,
+  "gitleaks_findings": 0,
+  "scan_artifacts": {
+    "semgrep": "c05d1fe1397695d96fc59641ddab4e4cb48ba111a39cea86db64bc0f741bc5bc",
+    "osv": "54345d5194d238b6017d0f3181f392109ce35023cc6b4bdfa8c134943dcb578e",
+    "trivy": "450ae80f68e76003bf168f1eccd19e30d6ec70a4831efa082e2de0bf2acf144d",
+    "checkov": "6e1ac7beb6cadea0fd843f536d34d92c4c082765705dbea12ac4e8ca82e3c530"
+  },
+  "input_surface": {
+    "declared": 15,
+    "implemented": 15,
+    "uncontrolled": [],
+    "reconciled": true
+  },
+  "data_surface": {
+    "classified": 42,
+    "sensitive": 42,
+    "unprotected": [],
+    "reconciled": true
+  },
+  "scan_reconciled": true
+}

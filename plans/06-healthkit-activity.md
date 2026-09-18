@@ -17,10 +17,12 @@ burned figure into the ring math ("remaining = budget − eaten + burned") with 
   the backend receives only a per-day aggregate. New table
   `day_activity(owner_uid, day_key, burned_kcal, source, updated_at)` —
   UNIQUE(owner_uid, day_key), bounded upsert (`PUT /activity/{day_key}`), same
-  validation/ownership/rate-limit shapes as every write. **Standing rule (first
-  new-table run):** `day_activity` joins the `erase.py` cascade + the AC5 erasure test
-  in this run, and this run introduces the shared owner_uid-table registry with its
-  export∪erase parity test (pulled forward from run 12) so no later run can under-erase.
+  validation/ownership/rate-limit shapes as every write. **Standing rule:** `day_activity`
+  joins the `erase.py` cascade + the AC5 erasure test in this run, and registers in the
+  shared owner_uid-table registry. If no earlier run has added an owner-scoped table by
+  then, this run also *builds* that registry and its export∪erase parity test (pulled
+  forward from run 12) so no later run can under-erase — otherwise it just registers.
+  See `docs/roadmap.md` standing rule 1.
 - Consent revocation: stop writes, show 0-state; decide whether stored aggregates are
   erased on revoke (lean: keep — they're the user's day history — but surface in policy).
 

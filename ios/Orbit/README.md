@@ -2,7 +2,7 @@
 
 Native iOS client for Orbit Fitness & Diet Tracking, replicating
 `design/design_handoff_orbit_swiftui/` (Claude Design export) against the FastAPI backend
-in `src/orbit/`. See root `CLAUDE.md` / `.pipeline/plan.md` §Frontend for the full brief;
+in `src/orbit/`. See root `CLAUDE.md` / `docs/decisions/feature/greenfield/plan.md` §Frontend for the full brief;
 this file covers iOS-specific build/generation mechanics only.
 
 ## Reduced assurance (read this first)
@@ -11,7 +11,7 @@ This project is built and reviewed on a **Linux host with no Swift toolchain and
 Xcode** — nothing here has been compiled or run yet. Every file is authored to the exact
 conventions in `swift-conventions`/`claude-design-to-swiftui`, but genuine compilation,
 test execution, and snapshot review happen on the operator's Mac
-(`plans/00-mac-pipeline-readiness.md` Phase 5). `.pipeline/implementation-progress.md`
+(`plans/00-mac-pipeline-readiness.md` Phase 5). `docs/decisions/feature/greenfield/implementation-progress.md`
 records this for each iOS task as it lands; never read a passing iOS task here as
 "gate-verified" the way a backend task is.
 
@@ -50,11 +50,11 @@ T17/T18, layered over `StarfieldView` with a `HeroSceneView` (Home/Fuel/Train on
 
 ## Project file: XcodeGen, not a hand-authored `.xcodeproj` (flagged deviation)
 
-`.pipeline/tasks.md`'s T11 row names `Orbit.xcodeproj` as the expected project file. This
+`docs/decisions/feature/greenfield/tasks.md`'s T11 row names `Orbit.xcodeproj` as the expected project file. This
 build uses a checked-in **`project.yml`** (XcodeGen spec) instead, generated into
 `Orbit.xcodeproj` on the Mac. Rationale (recorded per the plan's judgment-call
 precedent — see T2's `muscle_level_templates` design-note in
-`.pipeline/implementation-progress.md`):
+`docs/decisions/feature/greenfield/implementation-progress.md`):
 
 - A hand-authored `project.pbxproj` is a binary-adjacent, deeply order-and-UUID-sensitive
   format `xcodebuild`/Xcode itself normally writes — hand-editing it on a host with no

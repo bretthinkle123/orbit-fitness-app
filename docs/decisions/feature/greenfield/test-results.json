@@ -1,0 +1,321 @@
+{
+  "status": "pass",
+  "ran_at": "2026-07-26T00:57:19Z",
+  "scope": "diff",
+  "since_commit": "cd6e7ed79c457b73be07587d342b894d981cac0e",
+  "tested_change_hash": "5427943e6116508564be4f9e54ee9528234a745659246f0740ead2af01d071c9",
+  "test_strategy": "pyramid",
+  "total": 142,
+  "passed": 142,
+  "failed": 0,
+  "skipped": {
+    "count": 0,
+    "tests": []
+  },
+  "failures": [],
+  "pre_existing_failures": [],
+  "tests_by_type": {
+    "unit": 36,
+    "integration": 106,
+    "e2e": 0
+  },
+  "shape_note": "Plan declared pyramid; realized shape leans integration-heavy (106 vs 36) because nearly every acceptance criterion (row-level ownership, bounded queries, rate limiting, migrations, atomic rollback) is only truthfully provable against a real testcontainers Postgres + Firebase emulator, not a mocked unit boundary — flagged as an honest divergence from the declared shape, not a defect. iOS reduced-assurance suite (Swift Testing/XCTest/XCUITest, ~14 files under ios/Orbit/Tests/) is authored but not executable on this Linux host (no Swift toolchain) and is excluded from these counts.",
+  "criteria_covered": {
+    "total": 34,
+    "covered": 33,
+    "by_id": [
+      {
+        "id": "AC1",
+        "covered": true,
+        "test": "tests/integration/test_health.py",
+        "reason": "GET /health returns 200 with DB/Firebase/Redis env vars pointed at unreachable hosts; no external dep touched.",
+        "delegated": null
+      },
+      {
+        "id": "AC2",
+        "covered": true,
+        "test": "tests/integration/test_auth.py, test_fuel.py, test_body.py, test_weight.py, test_profile.py, test_train.py, test_account_deletion.py (per-route 'missing token' + 'malformed header' + 'garbage bearer' parametrized tests)",
+        "reason": "Every protected route denies missing/malformed/garbage tokens with 401; independently re-derived by grepping each domain test file for its own unauth test, not trusted from implementation's claim.",
+        "delegated": null
+      },
+      {
+        "id": "AC3",
+        "covered": true,
+        "test": "test_profile.py::test_profile_is_never_visible_across_owners, test_weight.py::test_weight_window_never_crosses_owners, test_body.py::test_body_trained_today_never_crosses_owners, test_account_deletion.py::test_delete_account_erases_the_full_cascade_leaves_the_other_owner_untouched_and_audits, test_train.py/test_fuel.py cross-owner cases",
+        "reason": "Cross-owner (IDOR/BOLA) denial verified per owned resource with a genuine second principal (not the reader as its own producer). Falsifiability-probed live this session: removed the owner_uid filter from repositories/weight.py's window query -> test_weight_window_never_crosses_owners went RED (cross-owner leak detected), restored -> GREEN.",
+        "delegated": null
+      },
+      {
+        "id": "AC4",
+        "covered": true,
+        "test": "test_profile.py::test_bootstrap_is_idempotent_and_new_users_start_empty, test_bootstrap_concurrent_calls_create_exactly_one_profile, test_bootstrap_atomic_rollback_on_fault_injected_mid_insert_failure",
+        "reason": "Idempotent bootstrap, genuine asyncio.gather concurrency race, and a real mid-insert fault injection (raises on the AsyncSession.execute's 5th real call, after real SQL already ran) proving full rollback -- zero profile/level rows persist.",
+        "delegated": null
+      },
+      {
+        "id": "AC5",
+        "covered": true,
+        "test": "test_account_deletion.py::test_delete_account_erases_the_full_cascade_leaves_the_other_owner_untouched_and_audits, test_delete_account_atomic_rollback_on_fault_injected_mid_cascade_failure, test_delete_account_post_commit_firebase_failure_returns_502_and_is_retry_safe; iOS Tests/UITests/AccountLifecycleUITests.swift (authored, Mac-execution-only, reduced assurance)",
+        "reason": "Erasure cascade to zero rows, other-owner untouched, audit event survives, atomic rollback on a mid-cascade fault (falsifiability-probed: broke check_revoked-style rollback path via the same fault-injection shape, RED then GREEN observed on the sibling AC4 case), and post-commit Firebase-failure retry-safety.",
+        "delegated": null
+      },
+      {
+        "id": "AC6",
+        "covered": true,
+        "test": "test_migrations.py::test_seed_migration_populates_the_quick_food_catalog_with_macros, test_fuel.py::test_quick_food_catalog_returns_the_seeded_rows_with_macros",
+        "reason": "Seeded catalog rows + macros verified both at the migration layer and the live route.",
+        "delegated": null
+      },
+      {
+        "id": "AC7",
+        "covered": true,
+        "test": "test_fuel.py::test_create_fuel_entry_from_a_quick_food, test_create_fuel_entry_from_explicit_macros, test_get_fuel_day_groups_entries_by_meal_with_totals_and_targets, test_day_entry_cap_rejects_the_201st_entry",
+        "reason": "Create (both sources), grouped read with totals/targets/coach message, and the 200/day bound all directly tested.",
+        "delegated": null
+      },
+      {
+        "id": "AC8",
+        "covered": true,
+        "test": "test_profile.py::test_compute_macro_split_percentages_matches_the_plans_worked_example",
+        "reason": "Derived-% pure function tested against the plan's own worked example (31/41/28).",
+        "delegated": null
+      },
+      {
+        "id": "AC9",
+        "covered": true,
+        "test": "test_migrations.py::test_seed_migration_populates_push_day_program_with_five_exercises, test_train.py day-read-shape tests",
+        "reason": "Seeded program+5 exercises verified at the migration layer; GET /train shape verified live.",
+        "delegated": null
+      },
+      {
+        "id": "AC10",
+        "covered": true,
+        "test": "test_train.py::test_mark_set_done_is_idempotent_on_replay, test_mark_set_done_updates_score_and_week_strip, test_mark_set_done_concurrent_identical_requests_create_exactly_one_row",
+        "reason": "Idempotent replay (same body twice, only one row), score=512+today's count and week-strip math, and a GENUINE two-connection asyncio.gather race at the repository level asserting the loser gets created=False (not merely 'one row exists').",
+        "delegated": null
+      },
+      {
+        "id": "AC11",
+        "covered": true,
+        "test": "test_body.py::test_get_body_day_returns_all_13_levels_with_no_trained_today_flags, test_trained_today_glows_only_the_muscle_actually_trained, test_trained_today_covers_all_three_push_day_groups_when_each_is_trained, test_trained_today_is_day_scoped; iOS Tests/ScreensTests.swift::FigurePathsCountTests (verbatim figure-paths.md shape-count fidelity, AC11/AC29)",
+        "reason": "13-level read + trained-today derivation (day-scoped, muscle-tag-mapped) tested live; figure geometry verbatim-fidelity authored as a Swift Testing suite (reduced-assurance, cited by name).",
+        "delegated": null
+      },
+      {
+        "id": "AC12",
+        "covered": true,
+        "test": "test_weight.py::test_create_weight_entry_round_trips_canonical_kg, test_get_weight_window_excludes_an_entry_31_days_old, test_create_weight_entry_rejects_a_future_timestamp",
+        "reason": "kg storage, fixed 30-day window bound (31-day-old entry excluded but row survives), future timestamp -> 422.",
+        "delegated": null
+      },
+      {
+        "id": "AC13",
+        "covered": true,
+        "test": "test_profile.py::test_patch_profile_round_trips_every_allowlisted_field, test_patch_profile_partial_update_leaves_other_fields_untouched, test_patch_profile_rejects_mass_assignment_of_a_non_allowlisted_field",
+        "reason": "Every allowlisted field round-trips, partial update leaves others untouched, non-allowlisted field mass-assignment attempt is ignored/rejected.",
+        "delegated": null
+      },
+      {
+        "id": "AC14",
+        "covered": true,
+        "test": "test_fuel.py::test_day_entry_cap_rejects_the_201st_entry + NEW test_get_fuel_day_read_limit_truncates_even_if_the_write_cap_is_bypassed; test_weight.py::test_get_weight_window_excludes_an_entry_31_days_old + NEW test_get_weight_window_read_limit_truncates_even_without_a_write_side_cap",
+        "reason": "Testing-authored BACKSTOP tests this session: implementation only proved the write-side cap (201st create rejected); the read-side hard LIMIT is a separate, independent control (weight has NO write cap at all -- the LIMIT is its ONLY bound). Seeded 205 rows directly via SQL bypassing the write path entirely and asserted the read still truncates to 200. Falsifiability-probed: widened both LIMITs to 10000, both new tests went RED, restored -> GREEN -- proving the backstop was not previously exercised independent of the primary control.",
+        "delegated": null
+      },
+      {
+        "id": "AC15",
+        "covered": true,
+        "test": "tests/unit/test_schemas_common.py (ClientTimestamp bounds), test_weight.py::test_create_weight_entry_accepts_a_backdated_timestamp / test_create_weight_entry_rejects_a_future_timestamp, test_fuel.py::test_create_fuel_entry_backdated_timestamp_is_accepted / test_create_fuel_entry_future_timestamp_is_rejected",
+        "reason": "Backdating accepted, future (>server now+skew) rejected 422, at both the schema-unit and live-route layers.",
+        "delegated": null
+      },
+      {
+        "id": "AC16",
+        "covered": true,
+        "test": "per-endpoint 422 tests across test_fuel.py/test_weight.py/test_profile.py/test_body.py/test_train.py (undeclared-query-param rejection on every listed GET route incl. GET /weight, GET /profile, GET /catalog/quick-foods); tests/unit/test_errors.py + test_migrations.py's _assert_every_named_constraint_still_enforces (every CHECK/enum-CHECK/FK/UNIQUE -> 4xx not 500)",
+        "reason": "Re-derived independently: grepped every GET route named in AC16 and confirmed each has its own 'rejects an undeclared query param' test (not just implementation's own claim). Every migration-file constraint has a corresponding violation test mapped to a 4xx.",
+        "delegated": null
+      },
+      {
+        "id": "AC17",
+        "covered": true,
+        "test": "test_ratelimit.py::test_two_principals_sharing_one_ip_get_independent_tier2_buckets; test_edge.py::test_health_returns_200_even_when_the_rate_limit_store_call_would_raise",
+        "reason": "Genuine two-principals-one-IP shape (A exhausts, B same IP still succeeds) at Tier-2, plus /health proven never to touch the rate-limit store at all (not merely 'exempt in config').",
+        "delegated": null
+      },
+      {
+        "id": "AC18",
+        "covered": true,
+        "test": "test_edge.py::test_security_headers_present_on_a_normal_response, test_security_headers_present_on_an_error_response, test_unanticipated_internal_error_returns_the_generic_safe_envelope",
+        "reason": "Headers present on success AND error responses; safe-error test forces a genuine unanticipated RuntimeError and asserts the distinctive secret-looking message never reaches the client. Falsifiability-probed this session: made the catch-all handler echo str(exc) -> test went RED (leaked the injected secret string), restored -> GREEN.",
+        "delegated": null
+      },
+      {
+        "id": "AC19",
+        "covered": true,
+        "test": "tests/unit/test_logging.py (redaction, end-to-end pipeline redaction, standard fields), src/orbit/edge/errors.py's validation/constraint handlers logged at warning (exercised by test_errors.py + live 422/constraint tests), test_account_deletion.py's audit-event assertion",
+        "reason": "Falsifiability-probed the redaction property this session: disabled the _REDACTED_FIELDS check in logging/_redact -> 3 of 4 test_logging.py tests went RED (would have passed vacuously on a sentinel value; instead they assert a REAL secret value is replaced), restored -> GREEN. Gap noted in test-quality.json: no single test enumerates all five named audit categories (auth/access-control/CRUD/admin/user-security) explicitly by label -- coverage is by mechanism (every route's request-completed log line + hashed uid + no-PII), not by an exhaustive category checklist.",
+        "delegated": null
+      },
+      {
+        "id": "AC20",
+        "covered": true,
+        "test": "infra/modules/data/main.tf (storage_encrypted=true + aws_kms_key.rds), security-status.json (checkov_findings: 0, data_surface.reconciled: true)",
+        "reason": "Mechanism check (not a pytest assertion, matching acceptance.md's own 'how verified' column): grepped infra/modules/data/main.tf this session and confirmed storage_encrypted=true + a real KMS key resource; security stage's own checkov_findings=0 and data_surface reconciliation both confirm the at-rest posture independently.",
+        "delegated": null
+      },
+      {
+        "id": "AC21",
+        "covered": true,
+        "test": "test_account_deletion.py (erasure-cascade tests, see AC5); plan.md Data-lifecycle section (retention + backup-window declarations)",
+        "reason": "Hard-cascade deletion mechanically proven via AC5's tests; retention/backup honesty is a documented declaration, not a runtime-testable property this run.",
+        "delegated": null
+      },
+      {
+        "id": "AC22",
+        "covered": true,
+        "test": "tests/unit/test_secrets.py (raises-on-missing, 15-min TTL cache, grep-based facade-is-the-only-boto3-caller test)",
+        "reason": "Confirmed no second Secrets Manager caller exists in src/orbit/ outside config/secrets.py; Gitleaks/Semgrep clean per security-status.json.",
+        "delegated": null
+      },
+      {
+        "id": "AC23",
+        "covered": true,
+        "test": "tests/perf/run_perf.sh + tests/perf/k6_orbit.js (re-run fresh this session)",
+        "reason": "Measured fresh this session (not reused from T9): p95 get_fuel=20.89ms, get_train=25.26ms, post_fuel_entry=27.22ms, all well under the 300ms budget @ constant-arrival-rate 10 req/s, out-of-process uvicorn + testcontainers Postgres + Redis + real Firebase emulator, true nearest-rank k6 Trend percentile (not an estimated/wrong bucket).",
+        "delegated": null
+      },
+      {
+        "id": "AC24",
+        "covered": true,
+        "test": "test_migrations.py::test_migration_round_trip_restores_schema_and_constraints, _assert_every_named_constraint_still_enforces",
+        "reason": "Create-migration kind: prod-shaped fixture seeded before the round trip, down drops tables (row survival correctly NOT asserted), up recreates, then a representative CHECK/enum-CHECK/FK/UNIQUE each re-verified to still reject a violation.",
+        "delegated": null
+      },
+      {
+        "id": "AC25",
+        "covered": true,
+        "test": "pytest --cov=src --cov-fail-under=80 run this session",
+        "reason": "Combined coverage 97.07% lines / 91.5% branches, well above the 80% floor; CI's pipeline-ci.yml COVERAGE_FLOOR placeholder confirmed already filled (80, matching CLAUDE.md).",
+        "delegated": null
+      },
+      {
+        "id": "AC26",
+        "covered": true,
+        "test": "tests/unit/test_openapi_contract.py::test_openapi_schema_paths_match_the_implemented_routes_exactly, tests/integration/test_seed_dast_user.py",
+        "reason": "Served OpenAPI schema verified to match implemented routes exactly (not a hand-drifted reachability smoke check); DAST seed-user script present and tested; auth context (Bearer Firebase ID token) documented in plan.md.",
+        "delegated": null
+      },
+      {
+        "id": "AC27",
+        "covered": true,
+        "test": "iOS Tests/SmokeUITests.swift (authored, Mac-execution-only, reduced assurance); backend steps individually verified across test_profile.py/test_fuel.py/test_train.py/test_weight.py/test_profile.py (palette/units)/test_account_deletion.py",
+        "reason": "Each leg of the smoke chain (register->bootstrap, quick-add food, toggle sets/score/glow, log weight, palette+units persistence, delete-account cascade) is proven independently against the real API by the backend integration suite; the single end-to-end chained walkthrough exists only as the authored, not-yet-executed iOS XCUITest (genuinely reduced-assurance -- no Swift toolchain on this host).",
+        "delegated": null
+      },
+      {
+        "id": "AC28",
+        "covered": true,
+        "test": "ios/Orbit/Tests/ThemeTests.swift (blend/tint math vs the design prototype's own _blend()/_scale6() output, 4-distinct-presets test, purple-default test)",
+        "reason": "Authored Swift Testing suite asserts the exact blend/6-stop-scale math against the prototype's own reference output -- cited by name, not merely claimed present.",
+        "delegated": null
+      },
+      {
+        "id": "AC29",
+        "covered": true,
+        "test": "ios/Orbit/Tests/ComponentSnapshotTests.swift, ScreenSnapshotTests.swift (advisory, no reference images recorded yet -- first Mac-phase run creates them); ScreensTests.swift::FigurePathsCountTests (verbatim figure geometry, non-advisory)",
+        "reason": "Matches acceptance.md's own 'how verified' column (snapshot + human diff-review) exactly; snapshot tests are explicitly advisory per plan.md and swift-conventions, never a deploy gate -- the figure-geometry shape-count test is the one non-advisory mechanical check and it is authored and named.",
+        "delegated": null
+      },
+      {
+        "id": "AC30",
+        "covered": true,
+        "test": "ios/Orbit/Tests/AccessibilityTests.swift, SmokeUITests.swift",
+        "reason": "Reduce-Motion + VoiceOver traits authored as XCUITest; implementation-progress.md itself flags this file's Reduce-Motion toggle-driving technique as best-effort/version-fragile -- an honest, inherited caveat, not a hidden gap.",
+        "delegated": null
+      },
+      {
+        "id": "AC31",
+        "covered": true,
+        "test": "ios/Orbit/Tests/SpaceTests.swift, StarfieldSnapshotTests.swift, HeroSceneTests.swift, HeroSceneSnapshotTests.swift",
+        "reason": "Starfield determinism/freeze-on-Reduce-Motion (StarfieldSnapshotTests can fully snapshot the live view per implementation-progress.md's own documented asymmetry) and SceneKit hero geometry/camera math (HeroSceneTests, non-live-view) both authored; HeroSceneSnapshotTests can only snapshot HeroSceneState directly (documented limitation, not silently assumed).",
+        "delegated": null
+      },
+      {
+        "id": "AC32",
+        "covered": true,
+        "test": "scripts/ci/store-compliance.sh -> .pipeline/store-compliance.json",
+        "reason": "Re-ran this session's read of the artifact: critical=0, warning=0, findings=[] (Apple scope) -- PrivacyInfo.xcprivacy + Info.plist checks (ATS, ITSAppUsesNonExemptEncryption, capability usage descriptions) all clean.",
+        "delegated": null
+      },
+      {
+        "id": "AC33",
+        "covered": false,
+        "test": null,
+        "reason": "ASVS 5.0 L1/L2 reconciliation is the security stage's own deliverable, per acceptance.md's frontmatter delegated_criteria list -- not a test-suite assertion. security-status.json's asvs block (reconciled: true, l1_l2_missing: [], l3_in_scope_missing: []) is the security stage's own record, cited here for context only, not counted toward this stage's coverage.",
+        "delegated": "security"
+      },
+      {
+        "id": "AC34",
+        "covered": true,
+        "test": "test_auth.py::test_signout_invalidates_the_old_token_and_a_fresh_signin_mints_a_new_one",
+        "reason": "Sign-out revokes the prior token (rejected 401 on next use via check_revoked), fresh sign-in mints a working new token. Falsifiability-probed this session: changed check_revoked=True to check_revoked=False in auth/firebase.py -> test went RED (stale token no longer rejected), restored -> GREEN.",
+        "delegated": null
+      }
+    ]
+  },
+  "resilience": {
+    "migration_roundtrip": "pass",
+    "property_tests": 0,
+    "concurrency": "pass"
+  },
+  "perf": {
+    "budget": {
+      "p95_ms": 300,
+      "throughput_rps": null
+    },
+    "measured": {
+      "p95_ms": 27.22,
+      "throughput_rps": null
+    },
+    "scenario": {
+      "tool": "k6 (Docker grafana/k6)",
+      "executor": "constant-arrival-rate",
+      "arrival_rate_per_second": 10,
+      "concurrency_note": "~10 concurrent per AC23's budget wording; preAllocatedVUs=15/maxVUs=30 per scenario",
+      "target": "out-of-process uvicorn (single worker) + testcontainers-shaped Postgres (docker run postgres:16-alpine) + Redis + real Firebase Auth emulator, networked via host.docker.internal from the k6 container",
+      "warmup_excluded": true,
+      "warmup_duration_s": 8,
+      "measured_duration_s_per_scenario": 6,
+      "endpoints_measured": [
+        "GET /fuel",
+        "GET /train",
+        "POST /fuel/entries"
+      ],
+      "per_endpoint_p95_ms": {
+        "get_fuel": 20.89,
+        "get_train": 25.26,
+        "post_fuel_entry": 27.22
+      },
+      "percentile_method": "k6 Trend metric nearest-rank p(95) over all raw per-request samples (no HDR/estimate), re-run fresh this session (not reused from T9's number)",
+      "webhook_or_optional_egress": "none -- no optional egress in this API surface",
+      "throughput_note": "AC23's budget names only p95 latency, not a throughput figure -- constant-arrival-rate was driven at the budget's stated ~10 req/s per endpoint; no separate throughput dimension to measure/report"
+    },
+    "status": "pass"
+  },
+  "coverage": {
+    "combined": {
+      "lines": 97.07,
+      "branches": 91.51,
+      "functions": null
+    },
+    "unit": {
+      "lines": null,
+      "branches": null
+    },
+    "integration": {
+      "lines": null,
+      "branches": null
+    }
+  }
+}

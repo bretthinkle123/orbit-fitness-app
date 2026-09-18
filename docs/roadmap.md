@@ -1,6 +1,8 @@
 # Roadmap — ordered feature runs after greenfield
 
-_Last updated 2026-07-18. The single source of truth for what runs after the greenfield
+_Last updated 2026-08-11 (standing rule 1 re-anchored: the owner_uid-table registry is
+owned by whichever run first adds an owner-scoped table, not run 6 by assumption).
+The single source of truth for what runs after the greenfield
 run, **in execution order**. One pipeline run per entry; each starts with
 `requirements-elicitation` reading its brief in [`plans/`](../plans/) — the entries here
 are one-line summaries, the briefs are the planning-stage context. (History: renamed from
@@ -19,10 +21,13 @@ verify (and fix) that machine's readiness to run this pipeline and build/test th
 
 1. **Erasure/export parity:** any run that adds an `owner_uid` table extends the
    `DELETE /me` cascade (`src/orbit/lifecycle/erase.py`) **and** the AC5 erasure test **in
-   the same run**, and registers the table in the shared owner_uid-table registry (the
-   registry + its export∪erase parity test are introduced by the first run to add a table
-   — run 6; run 12's export reuses it). Account deletion must never under-erase, even for
-   one run — AC5's "every domain table" and App Store 5.1.1(v) depend on it.
+   the same run**, and registers the table in the shared owner_uid-table registry. The
+   registry + its export∪erase parity test are built by **whichever run first adds an
+   owner-scoped table** — expected to be run 6, but run 2 (read-access audit) and run 3
+   (idempotency keys, if it takes the "shared keys table" option in its brief) could get
+   there first, and whichever does owns building it. Run 12's export reuses it. Account
+   deletion must never under-erase, even for one run — AC5's "every domain table" and App
+   Store 5.1.1(v) depend on it.
 2. **Classification pass:** any new stored personal field gets a data-protection
    classification row and the run-2 controls (field encryption, read-access audit) in the
    same run.

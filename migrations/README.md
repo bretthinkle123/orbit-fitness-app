@@ -35,5 +35,5 @@ global reference/template rows with no `owner_uid`; nothing here creates a per-u
 - `muscle_level_templates` was added as a judgment call beyond the plan's literal table
   list, to hold the seeded defaults `POST /me/bootstrap` copies per new user without
   duplicating them inline in application code — see
-  `.pipeline/implementation-progress.md` (T2 entry) /
-  `docs/decisions/feature/greenfield/` for the retained record.
+  `docs/decisions/feature/greenfield/implementation-progress.md`
+  (T2 entry) for the retained record.

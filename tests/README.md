@@ -30,11 +30,18 @@ collection for the coverage-gated job.
 
 ## Notes
 
-- Coverage floor is 80% (`CLAUDE.md`, mirrored in `pyproject.toml`'s pytest config and
-  `.github/workflows/pipeline-ci.yml`); this run measured **97.07% lines / 91.51%
-  branches** combined (`.pipeline/test-results.json`).
-- No mutation-testing tool is wired yet (`.pipeline/test-quality.json`:
-  `quality_ok: false` — see the PR description's Testing section); several
+- Coverage floor is 80% (`CLAUDE.md`), enforced by
+  `.github/workflows/pipeline-ci.yml`'s explicit `--cov-fail-under=80`. **`pyproject.toml`
+  sets no `addopts`**, so a bare `pytest` enforces nothing — pass the flag yourself
+  (`pytest --cov=src --cov-fail-under=80`) if you want the local run to fail like CI does.
+  This run measured **97.07% lines / 91.51% branches** combined
+  (`docs/decisions/feature/greenfield/test-results.json`).
+- Integration tests need the Firebase Auth emulator on `localhost:9099`. If **another
+  project's** emulator already holds that port, the fixture attaches to it, every minted
+  token carries the wrong issuer, and the suite fails with a wall of `401`s that looks
+  like an auth regression. Check `ss -ltnp | grep 9099` before believing such a failure.
+- No mutation-testing tool is wired yet (the run recorded `quality_ok: false` — see the
+  Testing section of `docs/decisions/feature/greenfield/pr-description.md`); several
   falsifiability probes (deliberately breaking a mechanism, confirming the test goes
   red, then restoring it) were run this session as a manual substitute for the
   highest-value security-property tests.
