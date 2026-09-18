@@ -24,7 +24,9 @@ import os
 os.environ.setdefault("FIREBASE_PROJECT_ID", "demo-orbit-test")
 
 import asyncio  # noqa: E402
+import signal  # noqa: E402
 import subprocess  # noqa: E402 — see ordering note above
+import tempfile  # noqa: E402
 import time  # noqa: E402
 import uuid  # noqa: E402
 from pathlib import Path  # noqa: E402
@@ -84,6 +86,27 @@ def _emulator_is_ready(host: str) -> bool:
         return False
 
 
+def _stop_process_group(process: subprocess.Popen) -> None:
+    """Stop `process` AND everything it spawned.
+
+    `firebase emulators:start` is a Node CLI that launches the emulator itself
+    as a child process. Terminating only the CLI relies on it forwarding the
+    signal, which it can't do once it has already exited (e.g. a failed
+    startup) — the child is then orphaned and can keep port 9099 bound. The
+    emulator is started in its own session, so signalling the process group
+    reaches the child either way.
+    """
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.wait(timeout=5)
+
+
 @pytest.fixture(scope="session")
 def firebase_emulator():
     """Start the Firebase Auth emulator for the whole test session (Operator
@@ -91,12 +114,17 @@ def firebase_emulator():
     credential resolution skips the real Secrets-Manager path and talks to
     the emulator instead. Yields the `host:port` string."""
     os.environ["FIREBASE_AUTH_EMULATOR_HOST"] = _FIREBASE_EMULATOR_HOST
+    # Output goes to a temp file, not a pipe. With a pipe, reading it on the
+    # failure path waited for EOF, which never came while the emulator's child
+    # process still held the write end — the session hung instead of failing.
+    log_file = tempfile.TemporaryFile(mode="w+")
     process = subprocess.Popen(
         ["firebase", "emulators:start", "--only", "auth", "--project", _FIREBASE_PROJECT_ID],
         cwd=_REPO_ROOT,
-        stdout=subprocess.PIPE,
+        stdout=log_file,
         stderr=subprocess.STDOUT,
         text=True,
+        start_new_session=True,
     )
 
     deadline = time.monotonic() + 45
@@ -110,17 +138,16 @@ def firebase_emulator():
         time.sleep(0.5)
 
     if not ready:
-        output = process.stdout.read() if process.stdout else ""
-        process.terminate()
+        _stop_process_group(process)
+        log_file.seek(0)
+        output = log_file.read()
+        log_file.close()
         raise RuntimeError(f"Firebase Auth emulator did not become ready in time.\n{output}")
 
     yield _FIREBASE_EMULATOR_HOST
 
-    process.terminate()
-    try:
-        process.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        process.kill()
+    _stop_process_group(process)
+    log_file.close()
     del os.environ["FIREBASE_AUTH_EMULATOR_HOST"]
 
 

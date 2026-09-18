@@ -151,15 +151,17 @@ budget and per-run log), and a Phase-5 storage gate in the runbook.
   a fresh `uuid4` address per call.
 - **The XCUITest sign-in account is provisioned by script** (commit `238953d`). Clearing
   the emulator's accounts also removes it; `scripts/seed_ui_test_user.sh` recreates it.
+- **`pip install -e .` works** (PR #5): the build backend pin moved to
+  `poetry-core>=2.0.0,<3.0.0`, which reads the PEP-621 `[project]` table. The
+  `PYTHONPATH=src` workaround is no longer needed for an editable install.
+- **The emulator fixture no longer hangs on a failed start** (PR #5): its output goes to
+  a temp file instead of a pipe, and it is stopped as a whole process group, so a
+  surviving emulator child can neither block the read nor keep port 9099 bound.
 
 **Still open:**
 - **`GoogleService-Info.plist` holds emulator-only placeholders** (project
   `demo-orbit-test`) and must be replaced with a real Firebase project's file before
   shipping. Tracked as a go-live item in `plans/E1-production-deploy-path.md`.
-- Backend `pip install -e .` fails: `pyproject.toml` pins `poetry-core<2.0`, which cannot
-  read the PEP-621 `[project]` table. Worked around with `PYTHONPATH=src`.
-- `tests/conftest.py:113` deadlocks: on the not-ready path `process.stdout.read()` blocks
-  forever because a grandchild holds the pipe open. Fires when port 9099 is already taken.
 - Per the runbook these fixes should have been routed to a debugging run on WSL rather
   than patched here; that was a deliberate deviation to get the app running. Fold them
   back upstream.

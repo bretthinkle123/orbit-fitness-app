@@ -167,7 +167,8 @@ sequenceDiagram
         API-->>App: 502 (retry-safe: the row erase is now a no-op)
     else
         API-->>App: 204
-        Note over App: RootView switches to sign-in (the Firebase SDK session and Keychain token are not cleared)
+        App->>App: clearLocalSession(): clear Keychain token + Auth.signOut() (no server call)
+        Note over App: RootView switches to sign-in
     end
 ```
 
