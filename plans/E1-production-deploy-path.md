@@ -74,6 +74,14 @@ stack A2 authored is applied once, by hand:
   human approval gate `deploy.yml` relies on.
 
 **Outside services and obligations:**
+- **A real Firebase project.** Everything so far runs against the Auth emulator
+  (project `demo-orbit-test`):
+  - The backend's Admin credentials go into Secrets Manager
+    (`orbit/firebase-admin-credentials`).
+  - `FIREBASE_PROJECT_ID` is set per environment.
+  - The iOS `Resources/GoogleService-Info.plist`, which holds emulator-only
+    placeholders today, is replaced with the real project's file before any
+    staging/TestFlight build.
 - A Sentry org/project + auth token (free tier) for release automation and dSYM upload.
 - The **Firebase Authentication password policy** must be enabled. The ASVS `6.2.x`
   waiver was granted "with the enable at deploy follow-up", so this run discharges it.

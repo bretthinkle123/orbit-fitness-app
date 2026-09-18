@@ -68,7 +68,7 @@ origin today gets a stale engine and no run evidence.
 |---|---|---|
 | Full Xcode (not just CLT) | `xcodebuild -version` | Operator installs Xcode from the App Store (~several GB), then `sudo xcodebuild -license accept` and `sudo xcode-select -s /Applications/Xcode.app` |
 | iOS Simulator runtime | `xcrun simctl list devices available \| grep -i iphone` | Xcode ▸ Settings ▸ Components — download an iOS runtime |
-| Docker Desktop | `docker info` | Operator installs Docker Desktop for Mac (Apple silicon) and launches it once |
+| Docker (Desktop or Colima) | `docker info` | Operator installs Docker Desktop for Mac (Apple silicon) and launches it once — or Colima (`brew install colima docker && colima start`), which is what PR #3 used for the DB-backed suites |
 | Homebrew | `command -v brew` | Operator installs from https://brew.sh (needs sudo once) |
 | GitHub auth | `gh auth status` | Operator runs `gh auth login` (browser flow) |
 | Claude Code Desktop (macOS app, v1.24+) | app installed + version check in its UI | Operator installs — its live iOS-Simulator pane (public beta July 2026; **Pro/Max/Team plans**) is the preferred Phase-5 driver; local sessions only. Optional alternative: Xcode 26.3+ has native Claude agent integration |
@@ -226,5 +226,9 @@ the Mac; append the outcome to this file's Verification log.
 ## Verification log
 
 _(appended by each readiness run — newest last)_
+
+_Note, not a readiness run: after the 2026-08-24 entry, PR #3 (merged 2026-08-26) ran
+the 10 DB-backed integration modules under Colima (106/106) and every iOS suite green.
+See `docs/mac-session-handoff.md`. No full readiness run has been logged since._
 - 2026-08-14: FULL=NO (Docker absent), iOS=PARTIAL — app BUILDS + RUNS + works end-to-end against the local stack for the first time; 9 code defects found and fixed (see docs/mac-session-handoff.md). Test bundle now compiles; XCUITest 11/12 failing, undiagnosed — resume there.
 - 2026-08-24: FULL=NO (Docker + gh auth only), iOS=YES — engine installed (46 hooks / 10 agents), `tests/run-eval.sh` ALL SUITES PASSED (259 checks incl. the three mapfile hooks after the pre-authorized shebang fix), GNU userland + all 7 scanners installed, terraform offline probe OK. Repo MOVED out of iCloud to ~/repos/orbit-fitness-app; app builds + all suites green from the new path. Remaining: operator installs Docker Desktop and runs `gh auth login`.

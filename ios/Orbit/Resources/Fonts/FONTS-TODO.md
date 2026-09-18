@@ -1,8 +1,9 @@
-# Fonts — TODO for the Mac phase
+# Fonts — TODO
 
-**Status: not yet bundled.** This Linux build host has no network path this session was
-authorized to use for fetching font binaries, and no Swift/Xcode toolchain to embed or
-verify them anyway (`docs/decisions/feature/greenfield/implementation-progress.md`'s T11 entry). Per plan.md's
+**Status: not yet bundled — still true after the first Mac session (PR #3).** The
+greenfield run's Linux host had no authorized network path for fetching font binaries,
+and no Swift/Xcode toolchain to embed or verify them anyway
+(`docs/decisions/feature/greenfield/implementation-progress.md`'s T11 entry). Per plan.md's
 Open Question 6 default, the app runs correctly without these files: `DesignSystem/
 Font+Theme.swift`'s `OrbitFontFamily.isEmbedded` checks at runtime whether each family's
 `.ttf` is actually registered and falls back automatically to the recorded SF substitute

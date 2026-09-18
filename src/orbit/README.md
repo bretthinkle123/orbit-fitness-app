@@ -13,7 +13,7 @@ Semgrep, OSV, Checkov) — the reduced-assurance stance applies to `ios/Orbit/`,
 
 | Module | Responsibility |
 |---|---|
-| `main.py` | `create_app()` — builds the FastAPI app, registers the edge-middleware stack once (request-ID/trace → security headers → CORS → Tier-1 throttle → auth → Tier-2 throttle → error envelope), mounts every router (`health`, `me`, `profile`, `fuel`, `train`, `body`, `weight`). |
+| `main.py` | `create_app()` — builds the FastAPI app, registers the edge-middleware stack once (request-ID/trace → security headers → CORS → Tier-1 throttle → request-size cap → auth → Tier-2 throttle → handler, with the error envelope innermost), mounts every router (`health`, `me`, `profile`, `fuel`, `train`, `body`, `weight`). |
 | `models.py` | SQLAlchemy 2.0 ORM models for all 9 tables (`profiles`, `muscle_base_levels`, `quick_foods`, `food_entries`, `programs`, `exercises`, `set_events`, `weight_entries`, plus the `muscle_level_templates` seed table). |
 | `auth/` | `require_auth` / `require_fresh_reauth` facade — Firebase ID-token verification, revocation-aware. |
 | `config/` | `Settings` (env config) + `get_secret()` (Secrets Manager/SSM facade). |
@@ -48,7 +48,7 @@ facades imported by the above rather than importing each other.
 |---|---|
 | `headers.py` | `SecurityHeadersMiddleware` — HSTS, `nosniff`, CSP, `X-Frame-Options: DENY`, referrer policy, on every response including errors. |
 | `cors.py` | `register_cors(app)` — explicit origin allowlist, never `*` with credentials. |
-| `ratelimit.py` | `EdgeThrottleMiddleware` (Tier-1, IP-keyed, pre-auth, `/health` exempt) + `require_resource_throttle` (Tier-2, uid-keyed, post-auth, on write routes) — shared Redis store, fail-open with a `warn` log on Redis unavailability. |
+| `ratelimit.py` | `EdgeThrottleMiddleware` (Tier-1, IP + route keyed, pre-auth, `/health` exempt) + `require_resource_throttle` (Tier-2, uid-keyed, post-auth, on write routes) — shared Redis store, fail-open with a `warn` log on Redis unavailability. |
 | `bodysize.py` | `RequestSizeLimitMiddleware` — rejects a declared `Content-Length` over 64 KiB with `413` before routing. |
 | `errors.py` | `install_error_handlers(app)` — the error-envelope facade; maps DB constraint violations and validation errors to 4xx, everything else to a generic `500` (no stack/SQL/type/path to the client). |
 
@@ -74,10 +74,11 @@ fault-injected failure mid-cascade rolls the whole thing back, per the test suit
 
 - Blocking Firebase Admin SDK calls (`verify_id_token`, `revoke_refresh_tokens`,
   `delete_firebase_user`) and the secrets-facade DB-URL resolution run via
-  `anyio.to_thread.run_sync` — they must never sit directly on the event loop (security
-  finding, fixed this run).
-- No route ever accepts an id path parameter — every resource is scoped by
+  `anyio.to_thread.run_sync` — they must never sit directly on the event loop (a security
+  finding fixed in the greenfield run).
+- No route accepts an id path parameter yet — every resource is scoped by
   `(owner_uid, day_key)` derived from the verified token, so the classic IDOR surface is
-  structurally absent.
+  structurally absent. C1 (`plans/C1-entry-management.md`) introduces the first
+  (`DELETE /fuel/entries/{id}`), owner-scoped by `(id AND owner_uid)` → 404.
 - `GET /health` has zero external dependencies (no DB/Firebase/Redis) and is exempt from
   the Tier-1 throttle — the smoke check depends on this.

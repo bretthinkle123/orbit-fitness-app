@@ -34,7 +34,7 @@ collection for the coverage-gated job.
   `.github/workflows/pipeline-ci.yml`'s explicit `--cov-fail-under=80`. **`pyproject.toml`
   sets no `addopts`**, so a bare `pytest` enforces nothing — pass the flag yourself
   (`pytest --cov=src --cov-fail-under=80`) if you want the local run to fail like CI does.
-  This run measured **97.07% lines / 91.51% branches** combined
+  The greenfield run measured **97.07% lines / 91.51% branches** combined
   (`docs/decisions/feature/greenfield/test-results.json`).
 - Integration tests need the Firebase Auth emulator on `localhost:9099`. If **another
   project's** emulator already holds that port, the fixture attaches to it, every minted
@@ -43,7 +43,8 @@ collection for the coverage-gated job.
 - No mutation-testing tool is wired yet (the run recorded `quality_ok: false` — see the
   Testing section of `docs/decisions/feature/greenfield/pr-description.md`); several
   falsifiability probes (deliberately breaking a mechanism, confirming the test goes
-  red, then restoring it) were run this session as a manual substitute for the
-  highest-value security-property tests.
-- iOS's own test suite (`ios/Orbit/Tests/`) is authored but not runnable from this
-  directory or on this host — see `ios/Orbit/README.md`.
+  red, then restoring it) were run during the greenfield run as a manual substitute for
+  the highest-value security-property tests.
+- iOS's own test suite (`ios/Orbit/Tests/`) is separate from this one and runs only on a
+  Mac with Xcode (all green as of PR #3) — see `ios/Orbit/README.md` and
+  `docs/mac-session-handoff.md`.

@@ -40,9 +40,9 @@ flowchart TD
     Client[iOS client] --> ReqID[Request-ID / trace middleware]
     ReqID --> Headers[Security headers]
     Headers --> CORS[CORS allowlist]
-    CORS --> BodySize[Request-size cap — 64 KiB declared Content-Length]
-    BodySize --> Tier1["Tier-1 edge throttle — IP-keyed (Redis); /health exempt"]
-    Tier1 --> Auth["require_auth — verify_id_token(check_revoked=True)"]
+    CORS --> Tier1["Tier-1 edge throttle — IP + route keyed (Redis); /health exempt"]
+    Tier1 --> BodySize[Request-size cap — 64 KiB declared Content-Length]
+    BodySize --> Auth["require_auth — verify_id_token(check_revoked=True)"]
     Auth --> Tier2["Tier-2 resource throttle — uid-keyed (write routes only)"]
     Tier2 --> Handler[Route handler]
     Handler --> Repo[Repository — owner-scoped, bounded query]
@@ -51,7 +51,9 @@ flowchart TD
     Envelope --> Response["JSON response / {error:{code,message,requestId}}"]
 ```
 
-`GET /health` short-circuits before the Tier-1 throttle touches Redis and before `auth`
+The order is `create_app()`'s registration in `main.py` (Starlette runs the last-added
+middleware outermost). `GET /health` is exempt from the Tier-1 throttle, so it never touches
+Redis, and it never reaches `auth`
 — it has no external dependency, by design (the smoke check's own contract). Write
 routes (`POST /fuel/entries`, `POST`/`DELETE /train/sets`, `POST /weight`,
 `PATCH /profile`, `POST /me/signout`, `DELETE /me`) are the only ones behind Tier-2;
@@ -61,8 +63,10 @@ minutes) ahead of the handler.
 ## 3. Authentication
 
 Firebase Auth owns identity (passwords, accounts, token issuance); the backend only
-verifies Firebase ID tokens. On iOS, `Core/AuthService.swift` is the only file that imports
-`FirebaseAuth`; on the backend, `src/orbit/auth/firebase.py` is the only module that imports
+verifies Firebase ID tokens. On iOS, `Core/AuthService.swift` owns every runtime Firebase
+call; the only other file importing `FirebaseAuth` is `App/OrbitApp.swift`, for
+DEBUG-only emulator wiring and the UI-test auth reset (both compiled out of Release). On
+the backend, `src/orbit/auth/firebase.py` is the only module that imports
 `firebase_admin`, behind the `require_auth` / `require_fresh_reauth` facade in
 `src/orbit/auth/__init__.py`.
 
@@ -186,10 +190,15 @@ erDiagram
         int fat_target_g
         int score_base
         string tier_label
+        string percentile_label
+        int next_tier_pct
         string palette_preset
         string units
         string gender
         int planet_index
+        int burned_kcal "nullable, always NULL until HealthKit (C6)"
+        float burn_rate "nullable, always NULL until HealthKit (C6)"
+        datetime created_at
     }
     MUSCLE_BASE_LEVELS {
         string owner_uid PK
@@ -209,9 +218,13 @@ erDiagram
         string owner_uid
         string name
         int kcal
+        float protein_g
+        float carb_g
+        float fat_g
         string meal_group
         datetime logged_at
         date day_key
+        datetime created_at
     }
     PROGRAMS {
         int id PK
@@ -226,6 +239,7 @@ erDiagram
         string name
         int sets
         int reps
+        float weight "prescribed"
         string muscle_tag
     }
     SET_EVENTS {
@@ -242,13 +256,15 @@ erDiagram
         float weight_kg
         date day_key
         datetime logged_at
+        datetime created_at
     }
 ```
 
 `MUSCLE_LEVEL_TEMPLATES` (a 4th global/seed table, not shown above — same shape as
 `MUSCLE_BASE_LEVELS` but with no `owner_uid`) holds the per-user defaults
 `POST /me/bootstrap` copies on account creation; it is a judgment-call addition beyond
-the plan's literal 9-table list (see `migrations/README.md`). `QUICK_FOODS`,
+the plan's literal table list, and brings the schema to 9 tables (see
+`migrations/README.md`). `QUICK_FOODS`,
 `PROGRAMS`/`EXERCISES`, and `MUSCLE_LEVEL_TEMPLATES` are global seed/reference data with
 no owner; every other table carries `owner_uid` and is scoped + bounded
 (`food_entries` ≤200/day, `weight_entries` 30-day window, both hard `LIMIT`s) at the
@@ -262,11 +278,18 @@ a user already logged — and an entry survives its catalog row being removed.
 
 ## 5. Deployment topology
 
-**Current (this run) — direct process, data-security baseline only:**
+**Where things stand:** the backend runs as a direct process (`uvicorn`) on the
+developer's machine against a local Postgres, a local Redis and the Firebase Auth
+emulator, with the iOS Simulator as the client. Development stays local-first until an
+explicit go-live decision (`docs/roadmap.md`). The Terraform below is **authored but has
+never been applied** to any AWS account (`offline_validate=true`); the diagram shows the
+target it describes.
+
+**Authored in `infra/` (never applied) — the data-security baseline:**
 
 ```mermaid
 flowchart TD
-    subgraph Provisioned_this_run [infra/ — provisioned]
+    subgraph Provisioned_this_run [infra/ — authored, not applied]
         VPC[VPC + private subnets]
         RDS[(RDS PostgreSQL — storage_encrypted, multi-AZ, force_ssl)]
         ElastiCache[(ElastiCache Redis — at-rest + in-transit encrypted)]
@@ -288,15 +311,16 @@ flowchart TD
 go-live in E1 — `plans/E1-production-deploy-path.md`): the compute path.**
 `deploy.yml` already scaffolds the target shape (verify signed image → `terraform apply`
 → migrate → canary rollout by ALB target-group weight, staging before prod, human
-approval gate on the `production` environment) — but `infra/` does not yet provision the
-ALB, ECS cluster/service, or the `envs/` staging/prod split it targets:
+approval gate on the `production` environment) — but `infra/` does not yet define the
+ALB, ECS cluster/service, or the `envs/` staging/prod split it targets. A1 adds
+`envs/local` (LocalStack); A2 authors the rest; E1 applies it:
 
 ```mermaid
 flowchart LR
     Internet((Internet)) --> ALB[ALB / target groups — NOT YET PROVISIONED]
     ALB --> ECS[ECS service — NOT YET PROVISIONED]
-    ECS --> RDS2[(RDS — provisioned)]
-    ECS --> Redis2[(ElastiCache — provisioned)]
+    ECS --> RDS2[(RDS — authored, not applied)]
+    ECS --> Redis2[(ElastiCache — authored, not applied)]
     ALB -.->|"trusted XFF CIDR (ProxyHeadersMiddleware) — configure when this lands"| ECS
 ```
 

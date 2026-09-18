@@ -5,8 +5,9 @@
 ## Purpose
 
 Standalone scripts that support the app or the pipeline but aren't part of the served
-API: a DAST test-user seeder, two mechanical consistency checkers for the iOS build, and
-the CI re-run scripts under `ci/` that `pipeline-ci.yml` invokes on the merge commit.
+API: two test-user seeders (DAST, XCUITest), two mechanical consistency checkers for the
+iOS build, a Mac storage-budget check, and the CI re-run scripts under `ci/` that
+`pipeline-ci.yml` invokes on the merge commit.
 
 ## Modules
 
@@ -18,7 +19,7 @@ the CI re-run scripts under `ci/` that `pipeline-ci.yml` invokes on the merge co
 | `seed_ui_test_user.sh` | Seeds the Firebase Auth emulator account the iOS XCUITest suite signs in as (`AuthFlowUITests.seededTestEmail`); parses the credentials out of the Swift test file so they cannot desync, and is idempotent (verifies the password still signs in on a re-run). Emulator-only — refuses to run without a reachable `FIREBASE_AUTH_EMULATOR_HOST`. Run it before a simulator test run. |
 | `check_simulator_storage.sh` | Storage budget check for the operator's Mac — reports free space on the data volume plus the reclaimable simulator/build caches, and gates a simulator testing run (exit 2) below the hard floor. Run before and after each run with `--log` to append to `docs/simulator-storage.md`. |
 | `ci/store-compliance.sh` | Deterministic Apple App Store submission checks (Tier-1) — writes `.pipeline/store-compliance.json`; deployment gate blocks on `critical > 0`. |
-| `ci/dast-review.sh` | Compares a captured OWASP ZAP passive-baseline report against a per-severity budget; writes the advisory `.pipeline/dast-review.json`. Requires a prior capture (`dast-capture.sh`, run separately) — not exercised this run (`dast.env` not opted in). |
+| `ci/dast-review.sh` | Compares a captured OWASP ZAP passive-baseline report against a per-severity budget; writes the advisory `.pipeline/dast-review.json`. Requires a prior capture (`dast-capture.sh`, run separately) — not exercised yet (`dast.env` not opted in). |
 | `ci/lockfile-check.sh` | Supply-chain integrity: flags a manifest changed without its lockfile, unpinned version specifiers, or a lockfile-only re-lock. |
 | `ci/asvs-sast.sh` | Deterministic subset of ASVS 5.0.0 checks promoted to a grep scan over the diff-scoped change set (cross-language). |
 | `ci/guard-source-markers.sh` | Blocks a changed file that still carries an experimental/reverted-fix marker from shipping. |
