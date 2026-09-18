@@ -42,6 +42,8 @@ repeatable local stack. Cost: $0.
   - RDS and ElastiCache are covered by the compose containers instead.
   - Modules are shared and never forked. If a module bundles a supported resource with
     an unsupported one, it is split, not copied.
+  - Today's root composition (`infra/main.tf`, `environment` defaulting to `production`)
+    stays where it is in this run. A2 moves it into `envs/prod`.
 - **Local secrets**: seeded into LocalStack from a gitignored `.env.local`, with a
   committed `.env.local.example` template. The secrets facade then reads real values
   through its normal path.

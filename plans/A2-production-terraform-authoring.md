@@ -13,7 +13,8 @@ design long before paying for any of it.
 ## Scope
 - **The `infra/envs/` split**: `envs/staging` and `envs/prod` roots alongside A1's
   `envs/local`, all sharing the same modules. Staging mirrors prod's shape at a smaller
-  size.
+  size. Greenfield's root composition (`infra/main.tf` + its variables/outputs) moves
+  into `envs/prod`, leaving `infra/` as `modules/` + `envs/` + `bootstrap/`.
 - **Network completion**: public subnets, internet gateway, NAT, route tables. Today's
   VPC is private-subnet-only. The backend needs outbound internet (it fetches Firebase's
   token-verification keys from Google), so some NAT is required. Choose NAT gateway vs a
@@ -35,8 +36,8 @@ design long before paying for any of it.
   enforces them until E1, so they get written carefully here.
 - **`deploy.yml`**: its placeholders are mapped to the Terraform outputs that will fill
   them. The workflow stays inert (`DEPLOY_ENABLED` unset).
-- **Cost estimate** per environment (monthly and hourly) as a committed doc. Pricing
-  inputs go through the always-on vs apply-and-destroy decision in E1.
+- **Cost estimate** per environment (monthly and hourly) as a committed doc. It feeds
+  E1's always-on vs apply-and-destroy decision.
 
 ## Validation (the gates for an unapplied run)
 - `terraform validate` + `plan` on every root with `offline_validate=true`

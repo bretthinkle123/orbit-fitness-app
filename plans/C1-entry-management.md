@@ -31,11 +31,12 @@ erasure is deletable.
 - **Idempotency storage**: `UNIQUE(owner_uid, idempotency_key)` on the two tables
   (nullable column; no TTL cleanup needed at day-key scale), or a shared keys table.
   Decide in-run.
-- **If the shared-keys table wins**, it may be the first run to add an owner-scoped table.
-  If so, it owns building the owner_uid-table registry and its export ∪ erase parity test,
-  and adds the table to the `erase.py` cascade and the AC5 erasure test (roadmap standing
-  rule 1). It also gets a data-classification row and the B1/B2 controls (standing
-  rule 2). The nullable-column option carries none of these obligations.
+- **If the shared-keys table wins**, it may be the first run to add an owner-scoped table
+  (unless B2 already added one). If so, it owns building the owner_uid-table registry and
+  its export ∪ erase parity test, and adds the table to the `erase.py` cascade and the AC5
+  erasure test (roadmap standing rule 1). It also gets a data-classification row and the
+  B1/B2 controls (standing rule 2). The nullable-column option carries none of these
+  obligations.
 - Deletes are hard deletes (consistent with the no-soft-delete lifecycle posture).
 
 ## Security / compliance notes

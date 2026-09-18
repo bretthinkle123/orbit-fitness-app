@@ -29,9 +29,11 @@ never contain the data values themselves.
 - **Event schema**: actor (hashed uid via the crypto facade), action, resource type +
   record id(s), outcome, timestamp, trace id. **Never values.**
 - **Covered actions**:
-  - Reads of health/personal data: the fuel day, the weight window, and anything B2
-    classifies as health-grade
-  - Creates, updates and deletes
+  - Reads of health/personal data: the fuel day and the weight window. These are the
+    data the original SOC brief already identified as health data. B2 runs after this
+    and builds the full classification table; any field it classifies health-grade is
+    added to the covered list then, in B2.
+  - Creates, updates and deletes of those records
   - Account deletion
   - Consent changes (B2)
   - Export (D1), later
@@ -47,7 +49,8 @@ never contain the data values themselves.
 - **Erasure interaction**: events carry the hashed uid, not the raw uid. Decide in-run
   whether `audit_events` is erasure-exempt, with a recorded basis
   (security/legal-obligation), or deleted by hashed uid. Record the outcome in the
-  lifecycle table either way, and in the owner_uid-table registry if it exists by then
+  lifecycle table either way. The owner_uid-table registry doesn't exist yet when B1
+  runs; whichever run later builds it (B2, C1 or C3) records `audit_events`' status there
   (roadmap standing rule 1).
 
 ## Key decisions

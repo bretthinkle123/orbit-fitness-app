@@ -76,28 +76,38 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     App->>FB: signIn / createUser (email, password)
-    FB-->>App: Firebase user + ID token
-    App->>API: POST /me/bootstrap (Bearer ID token)
+    FB-->>App: Firebase user
+    App->>App: getIDToken, copy saved to Keychain
+    Note over App: RootView switches to the tab shell
+    App->>API: POST /me/bootstrap (on every tab-shell load)
     Note over API,DB: idempotent create-if-absent profile + defaults
     loop every API call
-        App->>FB: getIDToken(forcingRefresh: false)
-        FB-->>App: cached token (network refresh only near expiry)
-        App->>API: request + Authorization: Bearer <token>
-        API->>FB: verify_id_token(check_revoked=True) on a worker thread
-        alt missing / bad signature / expired / revoked
-            API-->>App: 401 (same response whichever check failed)
-        else valid
-            FB-->>API: claims (uid, auth_time, …)
-            API->>DB: query scoped by owner_uid = claims.uid
-            DB-->>API: rows
-            API-->>App: 200 JSON
+        App->>App: getIDToken(forcingRefresh: false) from the SDK cache
+        opt token near expiry
+            App->>FB: refresh ID token
+            FB-->>App: new ID token
+        end
+        App->>API: request + Authorization: Bearer {ID token}
+        alt header missing or malformed
+            API-->>App: 401 (Firebase not contacted)
+        else bearer token present
+            API->>API: verify signature, exp, aud, iss (cached Google public keys)
+            API->>FB: check_revoked: fetch user record (worker thread)
+            FB-->>API: user record (tokens-valid-after, disabled)
+            alt bad signature / expired / revoked / disabled / user not found
+                API-->>App: 401 (same response whichever check failed)
+            else valid
+                API->>DB: query scoped by owner_uid = claims.uid
+                DB-->>API: rows
+                API-->>App: 2xx JSON
+            end
         end
     end
 ```
 
-The API calls Firebase on every request because `check_revoked=True` fetches the user's
-revocation state. `owner_uid` always comes from the verified claims, never from the request
-body.
+The signature check is local, but `check_revoked=True` fetches the user record from
+Firebase, so every authenticated request makes a round trip to Firebase. `owner_uid` always
+comes from the verified claims, never from the request body.
 
 **Sign-out** revokes the token server-side before discarding it locally:
 
@@ -108,32 +118,43 @@ sequenceDiagram
     participant FB as Firebase Auth
 
     App->>API: POST /me/signout (Bearer token)
-    API->>FB: revoke_refresh_tokens(uid)
-    API-->>App: 204
-    App->>App: clear Keychain token
-    App->>FB: Auth.signOut()
+    alt request fails (network error or non-2xx)
+        API-->>App: error
+        Note over App: error shown, still signed in locally (nothing cleared)
+    else success
+        API->>FB: revoke_refresh_tokens(uid)
+        API-->>App: 204
+        App->>App: clear Keychain token
+        App->>App: Auth.signOut() (SDK, local)
+        Note over App: RootView switches to sign-in
+    end
     Note over App,API: a token issued before the revocation now gets 401 on its next use
 ```
 
 **Account deletion** additionally requires a recent login (`require_fresh_reauth`:
-`auth_time` within 5 minutes):
+`auth_time` within 5 minutes). Any 401 on the first attempt opens the re-authentication
+prompt. `AppStore.deleteAccount` then sends `DELETE /me` again with the old token *before*
+re-authenticating, so a stale session makes three calls in total:
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant App as iOS app (AppStore + AuthService)
+    participant App as iOS app (SettingsSheet + AppStore)
     participant FB as Firebase Auth
     participant API as FastAPI
     participant DB as PostgreSQL
 
-    App->>API: DELETE /me (Bearer token)
-    alt auth_time older than 5 min
-        API-->>App: 401 Re-authentication required
-        App->>User: prompt for password
-        User-->>App: password
+    User->>App: Delete account, confirm
+    App->>API: DELETE /me (cached token)
+    opt 401, e.g. auth_time older than 5 min
+        API-->>App: 401
+        App->>User: re-authentication sheet
+        User-->>App: email + password
+        App->>API: DELETE /me (same cached token)
+        API-->>App: 401 again
         App->>FB: reauthenticate + getIDToken(forcingRefresh: true)
         FB-->>App: fresh token (auth_time = now)
-        App->>API: DELETE /me (fresh token), retried once
+        App->>API: DELETE /me (fresh token), final attempt
     end
     API->>DB: erase all owner_uid rows (one transaction)
     DB-->>API: committed
@@ -142,6 +163,7 @@ sequenceDiagram
         API-->>App: 502 (retry-safe: the row erase is now a no-op)
     else
         API-->>App: 204
+        Note over App: RootView switches to sign-in (the Firebase SDK session and Keychain token are not cleared)
     end
 ```
 

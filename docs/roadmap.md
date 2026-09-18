@@ -1,13 +1,13 @@
 # Roadmap — ordered feature runs after greenfield
 
-_Last updated 2026-09-18: reordered local-first. The single source of truth for what runs
+_Last updated 2026-09-17: reordered local-first. The single source of truth for what runs
 after the greenfield run, **in execution order**. One pipeline run per entry; each starts
 with `requirements-elicitation` reading its brief in [`plans/`](../plans/). The entries
 here are one-line summaries; the briefs are the planning-stage context._
 
 _History:_
 - _Renamed from `docs/deferred.md`._
-- _Reordered and re-lettered on 2026-09-18 (see the mapping table below)._
+- _Reordered and re-lettered on 2026-09-17 (see the mapping table below)._
 - _Runs are identified by **phase letter + name** (e.g. `C3 — program builder`). Frozen
   greenfield artifacts under `docs/decisions/feature/greenfield/` cite the old numbered
   paths (`plans/01-…`); the mapping table resolves them._
@@ -44,10 +44,11 @@ infrastructure. Until the owner explicitly decides to go live:
    - register the table in the shared owner_uid-table registry
 
    The registry and its export ∪ erase parity test are built by **whichever run first
-   adds an owner-scoped table**. That is expected to be **C3 — program builder**, unless
-   **C1 — entry management** takes its "shared idempotency-keys table" option first (B1's
-   `audit_events` is keyed by hashed uid and decides its own erasure basis). Whichever
-   gets there first owns building it. D1's export reuses it.
+   adds an owner-scoped table**. That is expected to be **C3 — program builder**. It
+   comes earlier if **B2** stores consent records or per-user data keys in a new table,
+   or if **C1 — entry management** takes its "shared idempotency-keys table" option.
+   (B1's `audit_events` is keyed by hashed uid and decides its own erasure basis.)
+   Whichever run gets there first owns building it. D1's export reuses it.
 
    Account deletion must never under-erase, even for one run — AC5's "every domain table"
    and App Store 5.1.1(v) depend on it.
@@ -89,9 +90,9 @@ infrastructure. Until the owner explicitly decides to go live:
 
 **Phase B — Data-protection foundation** (before features, so every feature inherits it)
 
-- **B1 — Append-only audit trail.** An audit facade and an append-only sink (DB role
-  INSERT-only); who read or changed which record, never the values. This is the
-  *security* log, distinct from users saving meals/workouts.
+- **B1 — Append-only audit trail.** An audit facade and an append-only sink (lean: a DB
+  table the app role can only INSERT into); who read or changed which record, never the
+  values. This is the *security* log, distinct from users saving meals/workouts.
   → [plans/B1-audit-trail.md](../plans/B1-audit-trail.md)
 - **B2 — Field encryption + consent.** KMS envelope encryption of health values via the
   crypto facade (KMS on LocalStack), the classification table, and a consent flow gating
@@ -99,27 +100,28 @@ infrastructure. Until the owner explicitly decides to go live:
 
 **Phase C — Features** (all local + Simulator)
 
-1. **C1 — Entry management.** Edit/delete saved meals and weigh-ins, plus idempotency
-   keys (no double-saved meal on a network retry).
-   → [plans/C1-entry-management.md](../plans/C1-entry-management.md)
-2. **C2 — Food logging integrations.** Search + **USDA FoodData Central** (free API key,
-   called by the backend), then barcode scan (USDA-only; a miss → prefilled manual
-   entry), then on-device nutrition-label OCR. Meal photos are deferred.
-   → [plans/C2-food-logging-integrations.md](../plans/C2-food-logging-integrations.md)
-3. **C3 — Program builder + workout logging.** User-owned programs, and saving performed
-   sets (weight × reps), which C4/C5 need. The biggest run.
-   → [plans/C3-program-builder.md](../plans/C3-program-builder.md)
-4. **C4 — Muscle progression.** Body levels derived from lift history.
-   → [plans/C4-muscle-derivation.md](../plans/C4-muscle-derivation.md)
-5. **C5 — Strength tier & percentile.** Makes "Intermediate II / Top 22%" real; needs
-   C3's performed-set data. → [plans/C5-tier-percentile.md](../plans/C5-tier-percentile.md)
-6. **C6 — HealthKit activity.** Real "Burned +N", using Simulator sample data; before the
-   coach. → [plans/C6-healthkit-activity.md](../plans/C6-healthkit-activity.md)
-7. **C7 — Adaptive diet coach (TDEE engine).** Lazy weekly compute, verified against
-   synthetic histories; available to all users (monetization is note-only — see Phase E).
-   → [plans/C7-adaptive-coach.md](../plans/C7-adaptive-coach.md)
-8. **C8 — Rank progression.** Streaks, orbit ranks, planet/ring unlocks.
-   → [plans/C8-rank-progression.md](../plans/C8-rank-progression.md)
+- **C1 — Entry management.** Edit/delete saved meals and weigh-ins, plus idempotency
+  keys (no double-saved meal on a network retry).
+  → [plans/C1-entry-management.md](../plans/C1-entry-management.md)
+- **C2 — Food logging integrations.** Search + **USDA FoodData Central** (free API key,
+  called by the backend), then barcode scan (USDA-only; a miss → prefilled manual
+  entry), then on-device nutrition-label OCR. Meal photos are deferred.
+  → [plans/C2-food-logging-integrations.md](../plans/C2-food-logging-integrations.md)
+- **C3 — Program builder + workout logging.** User-owned programs, and saving performed
+  sets (weight × reps), which C4/C5 need. The biggest run.
+  → [plans/C3-program-builder.md](../plans/C3-program-builder.md)
+- **C4 — Muscle progression.** Body levels derived from lift history.
+  → [plans/C4-muscle-derivation.md](../plans/C4-muscle-derivation.md)
+- **C5 — Strength tier & percentile.** Makes "Intermediate II / Top 22%" real; needs
+  C3's performed-set data. → [plans/C5-tier-percentile.md](../plans/C5-tier-percentile.md)
+- **C6 — HealthKit activity.** Real "Burned +N", using Simulator sample data; before the
+  coach. → [plans/C6-healthkit-activity.md](../plans/C6-healthkit-activity.md)
+- **C7 — Adaptive diet coach (TDEE engine).** Lazy weekly compute, verified against
+  synthetic histories; available to all users (monetization is decided at the go-live
+  gate).
+  → [plans/C7-adaptive-coach.md](../plans/C7-adaptive-coach.md)
+- **C8 — Rank progression.** Streaks, orbit ranks, planet/ring unlocks.
+  → [plans/C8-rank-progression.md](../plans/C8-rank-progression.md)
 
 **Phase D — Pre-live hardening** (local)
 
@@ -134,20 +136,20 @@ gets planned, and the coach is gated via C7's entitlement shape.
 
 **Phase E — Going live** (parked; briefs keep full go-live detail)
 
-1. **E1 — Production deploy path.** Account + budget alert + manual bootstrap, apply A2's
-   Terraform, CI deploy, canary + auto-rollback proven by fault injection, synthetics,
-   Sentry/dSYMs, Firebase password policy (discharges the ASVS 6.2.x waiver). Holds the
-   cost model. → [plans/E1-production-deploy-path.md](../plans/E1-production-deploy-path.md)
-2. **E2 — SOC visibility & security monitoring.** Detection, paging, GuardDuty,
-   CloudTrail, auditor/responder IAM with negative tests, runbooks; ships B1's events to
-   the CloudWatch audit group. → [plans/E2-soc-visibility.md](../plans/E2-soc-visibility.md)
-3. **E3 — App Store submission.** Apple Developer Program ($99/yr), privacy labels,
-   privacy-policy legal review, TestFlight, including the real-device checks (camera
-   barcode, real HealthKit data). → [plans/E3-app-store-submission.md](../plans/E3-app-store-submission.md)
+- **E1 — Production deploy path.** Account + budget alert + manual bootstrap, apply A2's
+  Terraform, CI deploy, canary + auto-rollback proven by fault injection, synthetics,
+  Sentry/dSYMs, Firebase password policy (discharges the ASVS 6.2.x waiver). Holds the
+  cost model. → [plans/E1-production-deploy-path.md](../plans/E1-production-deploy-path.md)
+- **E2 — SOC visibility & security monitoring.** Detection, paging, GuardDuty,
+  CloudTrail, auditor/responder IAM with negative tests, runbooks; ships B1's events to
+  the CloudWatch audit group and alarms D1's retention check. → [plans/E2-soc-visibility.md](../plans/E2-soc-visibility.md)
+- **E3 — App Store submission.** Apple Developer Program ($99/yr), privacy labels,
+  privacy-policy legal review, TestFlight, including the real-device checks (camera
+  barcode, real HealthKit data). → [plans/E3-app-store-submission.md](../plans/E3-app-store-submission.md)
 
 **— LAUNCH —**
 
-## Old → new mapping (2026-09-18 reorder)
+## Old → new mapping (2026-09-17 reorder)
 
 | Old | Old path | New |
 |---|---|---|
@@ -181,7 +183,7 @@ gets planned, and the coach is gated via C7's entitlement shape.
   or a history screen; bounded windows suffice until then).
 - **Macro-split % editor UX** (reconciling the design's "40P·35C·25F" copy) — with C7.
 
-## Deferred beyond go-live (decided 2026-09-18; revisit deliberately)
+## Deferred beyond go-live (decided 2026-09-17; revisit deliberately)
 - **Meal-photo recognition** (server-side ML: per-call cost; images leave the device, a
   major privacy-label/consent change). C2 builds on-device label OCR only; the Photo
   button stays stubbed.

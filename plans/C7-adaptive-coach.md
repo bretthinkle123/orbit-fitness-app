@@ -4,11 +4,11 @@ _Phase C (features, local + Simulator), run 7 of 8. [C6](C6-healthkit-activity.m
 (HealthKit) improves its accuracy. Consumed by requirements-elicitation + planning at run
 start._
 
-**Monetization (owner decision, 2026-09-18): note only, not a blocker.** The coach is
-built as a normal feature available to every user. Free vs freemium is decided before
-going live (roadmap Phase E). If freemium is chosen then, the entitlement shape in the
-"Monetization tie-in" section below is how the coach gets gated; StoreKit/webhook work
-becomes its own planned run.
+**Monetization (owner decision, 2026-09-17): note only, not a blocker.** The coach is
+built as a normal feature available to every user. Free vs freemium is decided at the
+roadmap's go-live gate, before Phase E. If freemium is chosen then, the entitlement
+shape in the "Monetization tie-in" section below is how the coach gets gated;
+StoreKit/webhook work becomes its own planned run.
 
 **Data (local-first):** the original brief assumed weeks of real post-launch intake and
 weight data. Locally, the engine is developed and verified against **seeded synthetic
@@ -41,9 +41,10 @@ weekly ("Coach adjusts Mon").
     help copy on sustained extreme deficits.
 
 ## Architecture decision (the real one): where the weekly job runs
-This is the first scheduled computation in the system.
-- **Lazy compute, decided for the local phase**: on `GET /fuel`, check whether an
-  adjustment is due. No new infrastructure; work is bounded per user.
+This is the first *scheduled* (weekly, stateful) computation in the system.
+- **Lazy compute, decided for the local phase** (following the lazy-compute precedent
+  [C4](C4-muscle-derivation.md) set): on `GET /fuel`, check whether an adjustment is
+  due. No new infrastructure; work is bounded per user.
 - The infrastructure-native alternative (EventBridge Scheduler → deployed compute) only
   exists once E1 is live. Revisit it then if scale warrants.
 - Either way: bounded windows per user, idempotent per (uid, week).

@@ -3,7 +3,7 @@
 _Phase E (going live), run 2 of 3. **Parked until the owner decides to go live.** Consumed
 by requirements-elicitation + planning at run start. Assumes E1 (prod exists)._
 
-> **Status (2026-09-18 reorder).** This brief originally bundled three parts. **Part C
+> **Status (2026-09-17 reorder).** This brief originally bundled three parts. **Part C
 > (data-sensitivity hardening) moved forward** into Phase B, so every feature run inherits
 > it:
 > - Per-record read-access audit → [B1](B1-audit-trail.md)
@@ -24,8 +24,8 @@ A SOC analyst can **detect** security events (dashboard + paging); a responder c
 **investigate and contain** them (queries, evidence, runbooks, least-privilege access) —
 AWS-native managed services (CloudWatch + GuardDuty + CloudTrail + SNS = the
 Well-Architected detective controls; read-only, no new app attack surface). **No in-app
-admin UI** — trusted-personnel access is IAM, not app code. (The health-data escalation controls moved
-to B1/B2 and land before this run.)
+admin UI** — trusted-personnel access is IAM, not app code. (The health-data
+escalation controls moved to B1/B2 and land before this run.)
 
 ## Part A — Detect & page (Terraform in `infra/modules/observability`)
 1. CloudWatch **metric filters** per detection signal (catalog below) — exact-field
@@ -36,7 +36,9 @@ to B1/B2 and land before this run.)
    deletions, revocations) + health pane (p95, error rate, log volume).
 4. **GuardDuty** → EventBridge → SNS. 5. **CloudTrail in Terraform** (S3, log-file
    validation). 6. **Silent-failure alarm** (log-ingestion absence). 7. **Sentry alert
-   rules** into the same path.
+   rules** into the same path. 8. **Retention-check alarm**: alarm on failure of D1's
+   retention-verification job. D1 ran locally before go-live, so the live alarming it
+   owes lands here.
 
 ### Detection catalog (tune thresholds in-run)
 | Signal | Source | Threshold | Sev | Response |
@@ -76,9 +78,9 @@ Every catalog row: filter+alarm exist (Terraform-asserted) + synthetic event fir
 end-to-end to SNS; auditor role passes view/query tests and fails write (negative IAM);
 GuardDuty sample finding routes; silent-failure alarm fires under fault; R1+R4 tabletop
 walked; B1 audit events delivered to the CloudWatch audit group + archive lifecycle
-intact; B2's KMS permissions hold under real IAM (the app role can decrypt, other
-principals can't); Checkov clean. (Encrypted-at-rest, read-audit append-only and
-consent gating were proven in B1/B2.)
+intact; D1's retention-verification job alarms on failure; B2's KMS permissions hold
+under real IAM (the app role can decrypt, other principals can't); Checkov clean.
+(Encrypted-at-rest, read-audit append-only and consent gating were proven in B1/B2.)
 
 ## Non-goals
 In-app admin screens; extra PII for monitoring (hashed uid stays the key);

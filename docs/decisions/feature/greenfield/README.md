@@ -9,7 +9,7 @@ PR #1). Each pipeline run writes its working artifacts to a gitignored `.pipelin
 directory that does **not** survive a fresh clone and whose files the *next* run
 overwrites. This directory is the durable copy of the ones worth keeping.
 
-**Plan paths in these files predate the 2026-09-18 roadmap reorder.** References such as
+**Plan paths in these files predate the 2026-09-17 roadmap reorder.** References such as
 `plans/01-production-deploy-path.md` or "roadmap run 1" use the old numbering. The
 records themselves are left as written; `docs/roadmap.md` § "Old → new mapping" resolves
 each to its current brief (e.g. run 1 → A1/A2 + E1).

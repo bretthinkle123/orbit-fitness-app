@@ -2,9 +2,9 @@
 
 _Phase E (going live), run 3 of 3 → LAUNCH. **Parked until the owner decides to go live,
 and only after every Phase A–D feature works locally in the Simulator** (owner rule,
-2026-09-18). Requires E1 (a live API) and E2. Consumed by requirements-elicitation +
-planning at run start. Greenfield already ships the mechanically-gated subset: account deletion
-(5.1.1(v)), `PrivacyInfo.xcprivacy` + Required-Reason declarations, ATS on,
+2026-09-17). Requires E1 (a live API) and E2. Consumed by requirements-elicitation +
+planning at run start. Greenfield already ships the mechanically-gated subset: account
+deletion (5.1.1(v)), `PrivacyInfo.xcprivacy` + Required-Reason declarations, ATS on,
 `ITSAppUsesNonExemptEncryption`, inert capability stubs — `store-compliance.sh`
 critical=0. This run does everything else between a repo and a listing (the
 app-store-submission-requirements skill is the checklist authority)._

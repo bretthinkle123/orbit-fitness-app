@@ -35,7 +35,15 @@ pseudonymization + SSE posture was proportionate before this run; this run escal
 - **IAM**: the app role gets `kms:GenerateDataKey` + `kms:Decrypt` on that key only.
   Written now; enforced for real in E1.
 - **Data classification table**, per data-protection-conventions, for every stored field.
-  From here on every Phase C run adds rows for its new fields (standing rule 2).
+  From here on every Phase C run adds rows for its new fields (standing rule 2). Any
+  field classified health-grade that B1's covered-read list doesn't include yet is added
+  to it in this run.
+- **Storage this run may add**: consent records (timestamp, policy version, per user),
+  and per-user data keys if that option is chosen. If either lands as a new
+  `owner_uid` table, **B2 becomes the first run to add an owner-scoped table**. It then
+  owns building the owner_uid-table registry and its export ∪ erase parity test, and
+  adds the table to the `erase.py` cascade + AC5 (roadmap standing rule 1). Consent held
+  as columns on `profiles` carries no such obligation.
 - **Consent UX**: explicit consent at registration for health-data processing; data
   writes are blocked until it's accepted; revocation behavior is defined. Consent changes
   emit B1 audit events.

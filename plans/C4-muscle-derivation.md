@@ -22,9 +22,11 @@ history instead of seeded statics, including level-up moments.
 - **Exercise → muscle mapping**: there is a single `muscle_tag` today. Add
   secondary-muscle weighting (e.g. bench → triceps 0.5)? Lean yes: a small static map is
   a big fidelity win.
-- **Compute timing**: on-write incremental vs on-read lazy. Mirror the coach's
-  ([C7](C7-adaptive-coach.md)) lazy-compute decision, with the same bounded-window
-  discipline.
+- **Compute timing**: on-write incremental vs on-read lazy. Lean lazy, with
+  bounded-window discipline. This is the first derived-on-read computation in the
+  system, so **the decision made here sets the precedent** that
+  [C5](C5-tier-percentile.md), [C7](C7-adaptive-coach.md) and
+  [C8](C8-rank-progression.md) follow.
 - **Level-up event**: where it surfaces (a Body screen moment; **no push** — reminders
   remain excluded), plus a `level_up` domain event for [C8](C8-rank-progression.md)'s
   streak/rank logic. A `level_up` is a gamification event, not a B1 audit event.

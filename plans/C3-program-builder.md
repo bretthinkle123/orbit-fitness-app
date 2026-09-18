@@ -3,7 +3,8 @@
 _Phase C (features, local + Simulator), run 3 of 8. The biggest run on the roadmap. It is
 the hard prerequisite for [C5](C5-tier-percentile.md) (strength tiers) and a strong
 accuracy boost for [C4](C4-muscle-derivation.md) (muscle levels): it introduces
-performed-set logging (weight × reps). C4 has a set-count fallback without it. Consumed by
+performed-set logging (weight × reps). C4 keeps a set-count fallback for toggle-only
+sets, where no weight was entered. Consumed by
 requirements-elicitation + planning at run start._
 
 **Terminology:** "workout logging" here means users **saving the workouts they performed**
@@ -23,8 +24,8 @@ importantly, they log what they actually lifted.
    - **Standing rule 1:** user-owned `programs`/`exercises` rows join the `erase.py`
      cascade, the AC5 erasure test and the owner_uid registry in this run. Owner-NULL seed
      rows stay outside the cascade.
-   - If no earlier run (C1's shared-keys option) has built the registry, **this run
-     builds it**, along with its export ∪ erase parity test.
+   - If no earlier run (a B2 consent/key table, or C1's shared-keys option) has built
+     the registry, **this run builds it**, along with its export ∪ erase parity test.
 2. **Exercise immutability/versioning (the history-integrity trap).** `set_events` has an
    FK to `exercises`, and the prescribed weight/reps live on the exercise row. If a user
    edits "Bench 100 lb → 110 lb" in place, their history silently rewrites.

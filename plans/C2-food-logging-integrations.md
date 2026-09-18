@@ -10,7 +10,7 @@ requirements-elicitation + planning at run start._
 Logging real-world foods without manual macro entry. This is the single biggest
 daily-utility upgrade and retention driver.
 
-## Decisions already made (owner, 2026-09-18)
+## Decisions already made (owner, 2026-09-17)
 - **Food-data source: USDA FoodData Central (FDC)**, the only provider this run.
   - Free, with a free API key from api.data.gov.
   - Data is public domain (CC0). Confirm the licence and current rate limits in-run; the
@@ -54,6 +54,10 @@ daily-utility upgrade and retention driver.
   collection.
 - **VisionKit/AVFoundation scanner** → barcode → FDC `gtinUpc` lookup via the backend;
   a miss goes to prefilled manual entry.
+- **New lookup endpoint** (e.g. `GET /catalog/barcode/{gtin}`) — another new input
+  surface. Digits-only, length-bound GTIN validation (UPC-A/EAN-13 lengths); the same
+  rate-limit tier, cache and provider facade as search. A miss returns a clean
+  not-found, never a 5xx.
 - **Simulator limitation:** the Simulator has no camera, and the live scanner reports
   itself unsupported there. Local verification therefore:
   - Feeds a barcode value in through a **DEBUG-only injection path**, compiled out of
@@ -85,7 +89,8 @@ daily-utility upgrade and retention driver.
 - An entry created from search carries correct macros + `source` + `external_food_id`.
 - Rate limit proven.
 - Provider outage (fixture-simulated) degrades to quick-add, never a 5xx.
-- Barcode hit/miss flows pass XCUITest via the DEBUG injection path.
+- Barcode endpoint rejects malformed GTINs (4xx); hit/miss flows pass XCUITest via the
+  DEBUG injection path.
 - The DEBUG path is absent from the Release build.
 - Label OCR parses the fixture labels correctly, and confirm-before-save holds.
 - Permission strings/manifest updated; licence recorded.

@@ -3,14 +3,14 @@
 _Phase E (going live), run 1 of 3. **Parked until the owner decides to go live**; nothing
 here runs during Phases A–D. Consumed by requirements-elicitation + planning at run start._
 
-> **Status (2026-09-18 reorder).** Development is local-first. By the time this runs,
+> **Status (2026-09-17 reorder).** Development is local-first. By the time this runs,
 > **A1** will have built the Dockerfile and the local stack, and **A2** will have authored
 > and offline-validated the staging/prod Terraform (envs split, network completion,
 > compute, WAF, observability alarms, the `bootstrap/` stack, and IAM). This run therefore
-> **applies, operates and proves** what A2 authored,
-> rather than writing it from scratch. The original brief below is retained in full as
-> the go-live reference. Where it says to *author* something that A2 already delivered,
-> read it as *apply and verify*.
+> **applies, operates and proves** what A2 authored, rather than writing it from
+> scratch. The original brief below is retained in full as the go-live reference. Where
+> it says to *author* something that A2 already delivered, read it as *apply and
+> verify*.
 >
 > The original framing was: pre-launch gate 1 of 4. Greenfield shipped the data-security
 > baseline (`infra/`: RDS, Redis, Secrets Manager, log groups, remote state) and an inert
@@ -58,7 +58,6 @@ SNS verified end-to-end; Checkov clean; runbook for deploy/rollback.
 ## Size
 Medium-large; mostly Terraform + CI + one Dockerfile; minimal app-code change (config).
 
-
 ## Going-live prerequisites & costs (captured 2026-09 planning discussion)
 
 **Manual bootstrap, done by the owner before CI can apply anything.** Terraform needs
@@ -84,8 +83,9 @@ stack A2 authored is applied once, by hand:
   xcconfig base URLs for staging/prod, alongside A1's local one.
 
 **Live-only verification owed by earlier phases (prove them here, don't re-derive):**
-- A1: IAM enforcement (expect AccessDenied debugging on first apply — that is the lesson),
-  VPC routing/security groups/NAT, RDS and ElastiCache behavior.
+- A1/A2: IAM enforcement for every role A2 wrote (expect AccessDenied debugging on first
+  apply — that is the lesson), VPC routing/security groups/NAT, RDS and ElastiCache
+  behavior.
 - B2: KMS key policy + app-role permissions under real enforcement.
 - D1: backup retention ≤ 7 days, S3 object expiry actually enforced.
 - Local data is synthetic and disposable, and never migrated. Production starts empty
@@ -98,10 +98,12 @@ stack A2 authored is applied once, by hand:
 |---|---|
 | Brief as written: staging + prod at parity (NAT gateway, ALB, Fargate, RDS, ElastiCache, WAF, KMS/Secrets/logs) | ~$200/mo if left running (~$110 prod + ~$89 staging) |
 | Same topology, **applied only while working, then `terraform destroy`** | ~$0.27/hr — about $6 for a full day |
-| Lean single-env prod (App Runner, NAT instance, no ElastiCache, SSM instead of Secrets Manager) | ~$20/mo in year one (RDS free tier), ~$32/mo after |
+| Lean single-env prod (App Runner, NAT instance, free-tier hosted Redis instead of ElastiCache, SSM instead of Secrets Manager) | ~$20/mo in year one (RDS free tier), ~$32/mo after |
 
 Items with no free tier: NAT gateway (~$33/mo), ALB (~$16), ElastiCache (~$12),
 WAF (~$10). The backend needs outbound internet (it fetches Firebase's token keys), so
-some NAT is required. For a learning-first owner, **apply → operate → break on purpose →
-destroy** sessions are the intended mode. Leaving the stack running is only for once real
-users exist.
+some NAT is required. Redis can't simply be dropped: the rate limiter requires a shared
+store, never in-process counters — hence a hosted free tier in the lean row.
+
+For a learning-first owner, **apply → operate → break on purpose → destroy** sessions are
+the intended mode. Leaving the stack running is only for once real users exist.

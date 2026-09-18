@@ -1,8 +1,8 @@
 # C8 — Rank progression / gamification
 
-_Phase C (features, local + Simulator), run 8 of 8. Reads the events
-[C4](C4-muscle-derivation.md) and [C5](C5-tier-percentile.md) produce, and degrades fine
-without them. Consumed by requirements-elicitation + planning at run start._
+_Phase C (features, local + Simulator), run 8 of 8. Reads C4's level events and C3's
+performed-set history ([C4](C4-muscle-derivation.md), [C3](C3-program-builder.md)), and
+degrades fine without them. Consumed by requirements-elicitation + planning at run start._
 
 ## Goal
 The space theme's progression becomes real: streaks ("Day 12 in orbit") and orbit ranks
@@ -17,8 +17,10 @@ greenfield's cosmetic planet picker.
     meeting an N-days-per-week goal = a streak week; kinder and more honest for training.
 - **Day boundaries**: `day_key` (device timezone) is already settled. Travel edge cases
   inherit the documented model; streak recompute is a bounded trailing-window read.
-- **Ranks**: streak-weeks + milestones (first level-up, first PR, from C4/C5 events) →
-  rank ladder → planet/ring unlock table. `planet_index` becomes the highest unlocked.
+- **Ranks**: streak-weeks + milestones → rank ladder → planet/ring unlock table.
+  Milestones: first level-up (C4's `level_events`) and first PR (a new best e1RM,
+  derived from C3's performed sets — C5 stores only the current e1RM, not history) →
+  unlocks. `planet_index` becomes the highest unlocked.
   Grandfather existing choices: never take away a planet a user already had.
 - **Surfacing**: Home card + planet picker states. **No push notifications** — reminders
   stay excluded; streaks surface in-app only.

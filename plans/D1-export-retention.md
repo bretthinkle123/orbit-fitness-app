@@ -22,10 +22,11 @@ declared retention policy is enforced by machinery rather than by promise.
   localhost.
 - **Format**: JSON (machine-readable satisfies Art. 20); one file per table + a manifest.
 - **Enumerate from the shared owner_uid-table registry, never a hand list.** The registry
-  is built by whichever Phase C run first added an owner-scoped table. By this run it
+  is built by whichever run first added an owner-scoped table (B2, C1 or C3). By this run it
   covers greenfield's five tables plus every Phase C addition that exists:
   `day_activity`, `tdee_estimates`, user-owned `programs`/`exercises`, `level_events`,
-  `strength_scores`, `progression`/`progression_events`, and any C1 idempotency table.
+  `strength_scores`, `progression`/`progression_events`, plus any B2 consent/key table
+  and any C1 idempotency table.
   The registry's parity test asserts export ∪ erase covers all owner_uid tables, so
   export and erasure can never drift.
 - **Values decrypt through the B2 crypto facade.** Export is plaintext by definition, so
@@ -37,7 +38,9 @@ declared retention policy is enforced by machinery rather than by promise.
 
 ## Retention automation
 - **Current policy**: life of account, so there is nothing to age out. The automation is
-  therefore **verification, not deletion**: a scheduled check asserting retention holds.
+  therefore **verification, not deletion**: a check asserting retention holds. Nothing
+  schedules jobs locally, so here it is an on-demand command (also run in CI). The live
+  schedule lands with E1/E2.
 - **Checkable locally in this run**:
   - B1 audit-sink retention as declared
   - Export objects expire (the lifecycle rule is configured and asserted in Terraform)

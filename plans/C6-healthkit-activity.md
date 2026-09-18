@@ -32,6 +32,12 @@ figure into the ring math ("remaining = budget − eaten + burned") with real da
   in this run and registers in the shared owner_uid-table registry. If no earlier run has
   built the registry by then, this run builds it and its export ∪ erase parity test (see
   `docs/roadmap.md` standing rule 1).
+- **Retire the greenfield placeholders.** Today the ring math reads the nullable
+  `profiles.burned_kcal` (`routes/fuel.py`: `remaining = budget − eaten +
+  (burned_kcal or 0)`), and `burn_rate` is surfaced through the profile schema. Both are
+  always NULL. This run switches both reads to `day_activity` for the requested
+  `day_key`, and drops the two profile columns in a migration (or documents why one
+  stays). Name every schema/response ripple in the plan.
 - **Consent revocation**: stop writes and show the zero-state. Decide whether stored
   aggregates are erased on revoke. Lean: keep them (they're the user's day history), but
   surface this in the policy.
