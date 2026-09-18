@@ -58,7 +58,94 @@ routes (`POST /fuel/entries`, `POST`/`DELETE /train/sets`, `POST /weight`,
 `DELETE /me` additionally requires `require_fresh_reauth` (Firebase `auth_time` within 5
 minutes) ahead of the handler.
 
-## 3. Data model
+## 3. Authentication
+
+Firebase Auth owns identity (passwords, accounts, token issuance); the backend only
+verifies Firebase ID tokens. On iOS, `Core/AuthService.swift` is the only file that imports
+`FirebaseAuth`; on the backend, `src/orbit/auth/firebase.py` is the only module that imports
+`firebase_admin`, behind the `require_auth` / `require_fresh_reauth` facade in
+`src/orbit/auth/__init__.py`.
+
+**Sign-in and an authenticated request:**
+
+```mermaid
+sequenceDiagram
+    participant App as iOS app (AuthService + APIClient)
+    participant FB as Firebase Auth
+    participant API as FastAPI (require_auth)
+    participant DB as PostgreSQL
+
+    App->>FB: signIn / createUser (email, password)
+    FB-->>App: Firebase user + ID token
+    App->>API: POST /me/bootstrap (Bearer ID token)
+    Note over API,DB: idempotent create-if-absent profile + defaults
+    loop every API call
+        App->>FB: getIDToken(forcingRefresh: false)
+        FB-->>App: cached token (network refresh only near expiry)
+        App->>API: request + Authorization: Bearer <token>
+        API->>FB: verify_id_token(check_revoked=True) on a worker thread
+        alt missing / bad signature / expired / revoked
+            API-->>App: 401 (same response whichever check failed)
+        else valid
+            FB-->>API: claims (uid, auth_time, …)
+            API->>DB: query scoped by owner_uid = claims.uid
+            DB-->>API: rows
+            API-->>App: 200 JSON
+        end
+    end
+```
+
+The API calls Firebase on every request because `check_revoked=True` fetches the user's
+revocation state. `owner_uid` always comes from the verified claims, never from the request
+body.
+
+**Sign-out** revokes the token server-side before discarding it locally:
+
+```mermaid
+sequenceDiagram
+    participant App as iOS app (AuthService)
+    participant API as FastAPI
+    participant FB as Firebase Auth
+
+    App->>API: POST /me/signout (Bearer token)
+    API->>FB: revoke_refresh_tokens(uid)
+    API-->>App: 204
+    App->>App: clear Keychain token
+    App->>FB: Auth.signOut()
+    Note over App,API: a token issued before the revocation now gets 401 on its next use
+```
+
+**Account deletion** additionally requires a recent login (`require_fresh_reauth`:
+`auth_time` within 5 minutes):
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant App as iOS app (AppStore + AuthService)
+    participant FB as Firebase Auth
+    participant API as FastAPI
+    participant DB as PostgreSQL
+
+    App->>API: DELETE /me (Bearer token)
+    alt auth_time older than 5 min
+        API-->>App: 401 Re-authentication required
+        App->>User: prompt for password
+        User-->>App: password
+        App->>FB: reauthenticate + getIDToken(forcingRefresh: true)
+        FB-->>App: fresh token (auth_time = now)
+        App->>API: DELETE /me (fresh token), retried once
+    end
+    API->>DB: erase all owner_uid rows (one transaction)
+    DB-->>API: committed
+    API->>FB: delete_user(uid)
+    alt identity delete fails
+        API-->>App: 502 (retry-safe: the row erase is now a no-op)
+    else
+        API-->>App: 204
+    end
+```
+
+## 4. Data model
 
 ```mermaid
 erDiagram
@@ -151,7 +238,7 @@ catalog row's name and macros into the entry at logging time; `food_entries` car
 **snapshot**, so re-pricing or correcting a catalog row never retroactively rewrites what
 a user already logged — and an entry survives its catalog row being removed.
 
-## 4. Deployment topology
+## 5. Deployment topology
 
 **Current (this run) — direct process, data-security baseline only:**
 
@@ -175,7 +262,8 @@ flowchart TD
     CI2[GitHub Actions] -.->|"terraform apply (deploy.yml, DEPLOY_ENABLED gate)"| Provisioned_this_run
 ```
 
-**Deferred (run 1 — `plans/01-production-deploy-path.md`): the compute path.**
+**Deferred (authored in A2 — `plans/A2-production-terraform-authoring.md`; applied at
+go-live in E1 — `plans/E1-production-deploy-path.md`): the compute path.**
 `deploy.yml` already scaffolds the target shape (verify signed image → `terraform apply`
 → migrate → canary rollout by ALB target-group weight, staging before prod, human
 approval gate on the `production` environment) — but `infra/` does not yet provision the

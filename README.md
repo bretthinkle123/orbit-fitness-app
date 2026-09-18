@@ -35,7 +35,10 @@ coverage.
 - **iOS:** SwiftUI (iOS 17+), `@Observable` + MV architecture, SceneKit (3D hero scenes).
 - **Infra:** AWS via Terraform (`infra/`) — this run provisions the **data-security
   baseline** (RDS, ElastiCache, Secrets Manager, CloudWatch log groups, VPC/security
-  groups); compute (ECS/ALB/autoscaling) is a deferred follow-on (`plans/01-production-deploy-path.md`).
+  groups); compute (ECS/ALB/autoscaling) and the staging/prod split are authored in
+  `plans/A2-production-terraform-authoring.md` and applied only at go-live
+  (`plans/E1-production-deploy-path.md`). Until then development is local-first —
+  see `docs/roadmap.md`.
 
 ## Repository layout
 
@@ -103,14 +106,15 @@ CI is scaffolded in `.github/workflows/`:
 - `deploy.yml` — inert until the operator sets the `DEPLOY_ENABLED` repo variable;
   verifies a signed build (cosign), then `terraform apply` + migrate + canary rollout.
   The compute topology (ECS/ALB/autoscaling) it targets is not yet provisioned in
-  `infra/` this run — see `docs/system_architecture.md` §Deployment topology and
-  `plans/01-production-deploy-path.md`.
+  `infra/` this run — see `docs/system_architecture.md` §Deployment topology,
+  `plans/A2-production-terraform-authoring.md` (authoring) and
+  `plans/E1-production-deploy-path.md` (go-live apply).
 - `terraform apply` never runs inside this pipeline; only in CI, after merge.
 
 **Outstanding deploy-time obligation:** enable the Firebase Authentication password
 policy for the project (ASVS `6.2.x`, waived conditionally this run — see
 `docs/decisions/feature/greenfield/security-report.md` and
-`plans/01-production-deploy-path.md`).
+`plans/E1-production-deploy-path.md`, which discharges it at go-live).
 
 **Waivers do not travel with a clone.** The human-recorded ASVS waivers (`6.3.3`,
 `6.2.x`) live in gitignored `.pipeline/waivers.json` by design — creating one is
