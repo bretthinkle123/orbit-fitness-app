@@ -177,6 +177,10 @@ final class AppStore {
     /// collaborators. A `nil` `reauthentication` on a 401 rethrows instead
     /// of guessing — the caller (a Settings screen, T13+) is what prompts
     /// the user for their password and calls back in with it.
+    ///
+    /// Once the server confirms the deletion, the local session is cleared
+    /// too (`clearLocalSession()`), so a relaunch lands on sign-in instead of
+    /// a tab shell whose every request would 401.
     func deleteAccount(
         authService: AuthServiceProtocol,
         reauthenticatingWith reauthentication: (email: String, password: String)? = nil
@@ -188,6 +192,10 @@ final class AppStore {
             try await authService.reauthenticate(email: reauthentication.email, password: reauthentication.password)
             try await apiClient.deleteAccount()
         }
+        // The account is already gone server-side, so a local-clear failure
+        // (a Keychain error) must not surface as "deletion failed": any token
+        // left behind is inert — the backend rejects it for a deleted user.
+        try? authService.clearLocalSession()
     }
 
     private static func asAppError(_ error: Error) -> AppError {

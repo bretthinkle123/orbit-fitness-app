@@ -442,6 +442,21 @@ struct AppStoreTests {
         #expect(authService.reauthenticateCallCount == 1)
         let deleteCallCount = await client.deleteAccountCallCount
         #expect(deleteCallCount == 2) // first attempt (401) + retry (success)
+        #expect(authService.clearLocalSessionCallCount == 1) // signed out locally once the retry succeeds
+    }
+
+    @Test("deleteAccount clears the local session after a first-attempt success")
+    @MainActor
+    func deleteAccountClearsLocalSessionOnSuccess() async throws {
+        let client = Self.makeMockClient()
+        let store = AppStore(apiClient: client, dayKey: "2026-07-25")
+        let authService = MockAuthService()
+
+        try await store.deleteAccount(authService: authService)
+
+        let deleteCallCount = await client.deleteAccountCallCount
+        #expect(deleteCallCount == 1)
+        #expect(authService.clearLocalSessionCallCount == 1)
     }
 
     @Test("deleteAccount rethrows the EXACT .unauthorized error when no reauthentication credentials are supplied")
@@ -461,6 +476,7 @@ struct AppStoreTests {
             Issue.record("expected an AppError, got \(error)")
         }
         #expect(authService.reauthenticateCallCount == 0)
+        #expect(authService.clearLocalSessionCallCount == 0) // nothing was deleted, so the session stays
     }
 }
 
@@ -470,6 +486,7 @@ struct AppStoreTests {
 @MainActor
 final class MockAuthService: AuthServiceProtocol, Sendable {
     private(set) var reauthenticateCallCount = 0
+    private(set) var clearLocalSessionCallCount = 0
     var onReauthenticate: (() async -> Void)?
     var isSignedIn: Bool = true
     var currentUserDisplayName: String?
@@ -478,6 +495,9 @@ final class MockAuthService: AuthServiceProtocol, Sendable {
     func register(email: String, password: String, displayName: String) async throws {}
     func signIn(email: String, password: String) async throws {}
     func signOut() async throws {}
+    func clearLocalSession() throws {
+        clearLocalSessionCallCount += 1
+    }
     func reauthenticate(email: String, password: String) async throws {
         reauthenticateCallCount += 1
         await onReauthenticate?()

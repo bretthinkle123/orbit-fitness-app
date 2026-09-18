@@ -54,6 +54,10 @@ committed file, a PR description, or anything else that leaves this machine.
 - Migrate: `alembic upgrade head`
 - iOS: Swift toolchain + XCTest (reduced assurance; see Stack notes).
 - Deploy: CI on merge — `.github/workflows/`; ci-conventions + delivery-conventions.
+  **Parked:** development is local-first (iOS Simulator + Firebase emulator + the A1
+  local stack) until an explicit owner go-live decision; the deploy workflows stay inert
+  (`DEPLOY_ENABLED` unset). Run order, phases, and the local-first standing rules:
+  `docs/roadmap.md`.
 
 ## Frontend design source
 - Design source: see design/design_handoff_orbit_swiftui/ (Claude Design export)
@@ -68,7 +72,7 @@ committed file, a PR description, or anything else that leaves this machine.
 - **Row-level ownership** (owner key = Firebase UID) on every domain row; no local PII
   beyond the UID (email/display name stay in Firebase).
 - **Every collection query bounded**: day-/window-scoped + hard LIMIT (entries/day ≤ 200,
-  weights 30-day window). No pagination this run.
+  weights 30-day window). No pagination yet (a roadmap small item, decided per run).
 - Timestamps client-provided; backdating ok; reject future (> server now).
 - Domain data is **day-keyed** (user's device-tz local date; client sends tz).
 - Weight stored canonical metric (kg); display converts per units setting (round 0.1).

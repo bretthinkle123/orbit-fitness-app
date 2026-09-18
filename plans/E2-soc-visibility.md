@@ -1,18 +1,31 @@
-# Run 2 — SOC visibility & security monitoring + data-sensitivity hardening
+# E2 — SOC visibility & security monitoring (go live)
 
-_Pre-launch gate 2 of 4. Consumed by requirements-elicitation + planning at run start.
-Scope assumes greenfield as built (structured audit logs to CloudWatch app + immutable
-audit groups, X-Ray, thin Sentry init, `infra/` observability module) and run 1 (prod
-exists). **Encryption must land in this run, pre-users:** post-launch it becomes a live
-dual-write migration through KMS._
+_Phase E (going live), run 2 of 3. **Parked until the owner decides to go live.** Consumed
+by requirements-elicitation + planning at run start. Assumes E1 (prod exists)._
+
+> **Status (2026-09-17 reorder).** This brief originally bundled three parts. **Part C
+> (data-sensitivity hardening) moved forward** into Phase B, so every feature run inherits
+> it:
+> - Per-record read-access audit → [B1](B1-audit-trail.md)
+> - Field-level KMS encryption + consent UX → [B2](B2-field-encryption-consent.md)
+>
+> What remains here is Parts A and B, which need real AWS: detection, paging, GuardDuty,
+> CloudTrail, the auditor/responder IAM roles and their negative tests, and runbooks. It
+> also ships B1's audit events into the CloudWatch `audit` log group + S3/Glacier archive.
+> The metric filters, alarms and SNS Terraform *may* be authored ahead of time on the A2
+> pattern (plan-validated, not applied); decide at run start. Verification is live-only.
+>
+> The original framing was: pre-launch gate 2 of 4. Scope assumed greenfield as built
+> (structured audit logs to CloudWatch app + immutable audit groups, X-Ray, thin Sentry
+> init, `infra/` observability module) and prod existing.
 
 ## Goal
 A SOC analyst can **detect** security events (dashboard + paging); a responder can
 **investigate and contain** them (queries, evidence, runbooks, least-privilege access) —
 AWS-native managed services (CloudWatch + GuardDuty + CloudTrail + SNS = the
 Well-Architected detective controls; read-only, no new app attack surface). **No in-app
-admin UI** — trusted-personnel access is IAM, not app code. Plus: the health-data
-escalation controls, landed before real users exist.
+admin UI** — trusted-personnel access is IAM, not app code. (The health-data
+escalation controls moved to B1/B2 and land before this run.)
 
 ## Part A — Detect & page (Terraform in `infra/modules/observability`)
 1. CloudWatch **metric filters** per detection signal (catalog below) — exact-field
@@ -23,7 +36,9 @@ escalation controls, landed before real users exist.
    deletions, revocations) + health pane (p95, error rate, log volume).
 4. **GuardDuty** → EventBridge → SNS. 5. **CloudTrail in Terraform** (S3, log-file
    validation). 6. **Silent-failure alarm** (log-ingestion absence). 7. **Sentry alert
-   rules** into the same path.
+   rules** into the same path. 8. **Retention-check alarm**: alarm on failure of D1's
+   retention-verification job. D1 ran locally before go-live, so the live alarming it
+   owes lands here.
 
 ### Detection catalog (tune thresholds in-run)
 | Signal | Source | Threshold | Sev | Response |
@@ -51,28 +66,21 @@ escalation controls, landed before real users exist.
 - **Evidence:** audit group 90 d hot + S3 archive lifecycle (Glacier; hashed-uid only, no
   PII, privacy-safe).
 
-## Part C — Data-sensitivity hardening (the escalation, landed now)
-Weight-over-time + diet logs are health data under GDPR Art. 9 (in context), WA My
-Health My Data, CPRA sensitive PI, FTC HBNR, and Apple's Health & Fitness label — though
-not HIPAA (consumer app). (The app stores no height and computes no BMI; if either is
-ever added it inherits this classification.) Greenfield's pseudonymization+SSE posture was proportionate
-pre-launch; this run escalates before users exist:
-- **Field-level KMS envelope encryption** for weight values and food entry values
-  (name/kcal/macros) via the `src/orbit/crypto/` facade; migration converts columns;
-  value CHECKs move fully to Pydantic (DB CHECKs on ciphertext drop — document).
-  Totals computed app-side (≤200 rows/day — already the shape).
-- **Per-record read-access audit events** (audit-trail-conventions): who read which
-  record-set, when, outcome — never values.
-- **Consent UX** (explicit consent at register for health-data processing) + privacy
-  policy/legal review checkpoint.
+## Part C — Data-sensitivity hardening → moved to Phase B
+Moved to [B1](B1-audit-trail.md) (read-access audit trail) and
+[B2](B2-field-encryption-consent.md) (field-level KMS encryption, consent UX, the
+health-data classification rationale). The privacy-policy **legal review** checkpoint
+from this part is a go-live item and moves to [E3](E3-app-store-submission.md). This run
+proves B2's KMS key policy + app-role permissions under real IAM enforcement.
 
 ## Acceptance sketch
 Every catalog row: filter+alarm exist (Terraform-asserted) + synthetic event fires
 end-to-end to SNS; auditor role passes view/query tests and fails write (negative IAM);
 GuardDuty sample finding routes; silent-failure alarm fires under fault; R1+R4 tabletop
-walked; encrypted-at-rest proven (raw column read ≠ plaintext; API round-trip intact);
-read-audit events emitted + append-only; consent flow blocks data writes until accepted;
-Checkov clean.
+walked; B1 audit events delivered to the CloudWatch audit group + archive lifecycle
+intact; D1's retention-verification job alarms on failure; B2's KMS permissions hold
+under real IAM (the app role can decrypt, other principals can't); Checkov clean.
+(Encrypted-at-rest, read-audit append-only and consent gating were proven in B1/B2.)
 
 ## Non-goals
 In-app admin screens; extra PII for monitoring (hashed uid stays the key);
@@ -81,5 +89,4 @@ logs, Security Hub, OpenSearch export, anomaly detection — deferred until traf
 justify).
 
 ## Size
-Medium (Terraform + runbooks) + the encryption migration (contained: crypto facade +
-repositories + one migration + tests).
+Medium (Terraform + runbooks + IAM). The encryption migration moved to B2.

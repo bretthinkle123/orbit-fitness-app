@@ -1,26 +1,26 @@
-# Mac session handoff — 2026-08-14 (paused mid-run)
+# Mac development notes
 
-Working notes from the first Mac run after the greenfield merge
-(`plans/00-mac-pipeline-readiness.md` Phase 5). Delete this file once the work
-below is folded into a proper run.
+Notes from the first Mac sessions after the greenfield merge
+(`plans/00-mac-pipeline-readiness.md` Phase 5), started 2026-08-14. The work they
+describe was merged in **PR #3 (2026-08-26)**. The file is kept as the Mac environment
+reference and restart recipe. A1 (`plans/A1-local-environment.md`) will replace the
+manual recipe below with `scripts/dev-up.sh`.
 
-## Where things stand
+## Where things stand (as of PR #3, 2026-08-26)
 
-**The app builds, launches, and works end-to-end for the first time.** Register →
-signed-in shell → `POST /me/bootstrap` → `/fuel` `/train` `/body` `/weight` all
-returning 200 against the real local backend, with theme switches persisting via
-`PATCH /profile`. The space theme renders correctly.
+**The app builds, launches, and works end-to-end on the Mac.** Register → signed-in
+shell → `POST /me/bootstrap` → `/fuel` `/train` `/body` `/weight` all return 200 against
+the local backend, and theme switches persist via `PATCH /profile`. The space theme
+renders correctly.
 
-| Track | State |
+| Suite | Result |
 |---|---|
-| Backend `/health` + unit tests | 36/36 pass |
-| Backend auth integration (emulator-backed) | 13 pass |
-| Backend DB-backed integration (9 modules + 1 rate-limit test) | **Not run** — needs Docker |
-| iOS app build | **BUILD SUCCEEDED** |
-| iOS test bundle build | **TEST BUILD SUCCEEDED** (was uncompilable) |
-| iOS XCUITest suites | 7 pass / **5 fail** (was 11 fail) — see "Next step" |
-| iOS Swift Testing unit suites | **155 of 157 pass** (was: host crashed, 0 executed) |
-| iOS snapshot suites | Re-record baselines on a clean run (advisory) |
+| Backend unit | 36/36 pass |
+| Backend integration, including all 10 DB-backed modules (Docker via Colima) | **106/106 pass**, re-runnable without wiping the emulator |
+| iOS app build + test bundle build | BUILD / TEST BUILD SUCCEEDED |
+| Swift Testing units | **157/157 pass** |
+| iOS snapshot suites | **50/50 pass** (baselines are per-machine and gitignored; advisory, never a gate) |
+| iOS XCUITest | **12 executed, 0 failures**, 1 skipped by original design (see below) |
 
 ## Environment (2026-08-24 — pipeline installed)
 
@@ -46,11 +46,12 @@ again (gitignored) and has been recreated there.
 - `check-run-host.sh` prints "running on the Windows host" on macOS. Expected and
   advisory, exactly as the runbook predicts; the missing Darwin branch is an engine gap.
 
-### Still operator-only
+### Resolved since the first session
 
-- **Docker Desktop** — not installed. Blocks the 10 DB-backed backend integration
-  modules and the testcontainers path.
-- **`gh auth login`** — not logged in. Deployment commits/PRs need it.
+- **Docker**: the DB-backed integration modules and the testcontainers path now run
+  under Colima (PR #3's 106/106).
+- **`gh auth login`**: the first session was blocked on it. Check `gh auth status` before
+  a pipeline run; the deployment stage needs it.
 
 ## To restart the stack
 
@@ -74,16 +75,9 @@ SIMCTL_CHILD_OrbitAPIBaseURL="http://localhost:8001" \
 
 Both launch env vars are required; without the second, auth bypasses the emulator.
 
-## Test status (2026-08-17) — all suites green, nothing skipped by me
+## The one skipped test
 
-| Suite | Result |
-|---|---|
-| Swift Testing units | **157 / 157 pass** |
-| XCTest snapshot suites | **50 executed, 0 failures, 0 skipped** |
-| XCUITest | **12 executed, 0 failures**, 1 skipped by original design |
-| Backend unit + auth integration | 36 + 13 pass |
-
-The only remaining skip is the pre-existing
+The only skip is the pre-existing
 `testDeleteAccountWithStaleSessionShowsTheReauthPrompt`, which the greenfield author
 skipped deliberately (forcing a stale `auth_time` needs a test-only backdoor the app
 does not build). That is unchanged and not mine.
@@ -118,7 +112,7 @@ every one of them passes in isolation.
 runs last, after ~11 other UI tests have churned the same simulator; the failure was
 always a wait expiring, never a wrong value.
 
-## Code changes made this session (all uncommitted)
+## Code changes made in the first Mac session (merged in PR #3)
 
 Fourteen fixes, each one a defect that shipped in the greenfield run. The common cause is
 that the Swift was authored on Linux and **had never been compiled or run**.
@@ -145,24 +139,29 @@ that the Swift was authored on Linux and **had never been compiled or run**.
 Also added: `scripts/check_simulator_storage.sh` + `docs/simulator-storage.md` (storage
 budget and per-run log), and a Phase-5 storage gate in the runbook.
 
-## Other open items
+## Open items
 
-- `ios/Orbit/Tests/__Snapshots__/` is new and untracked — snapshot baselines recorded by
-  the first run. Review before committing; they are only as correct as the render that
-  produced them.
-- ~~The Firebase emulator holds a throwaway `probe@test.com` user~~ — the emulator's
-  accounts were cleared on 2026-08-24. Note that clearing them ALSO removes the account
-  the XCUITest sign-in tests need; `scripts/seed_ui_test_user.sh` recreates it, and the
-  backend suite no longer depends on emulator state at all (see below).
-- **The integration suite is re-runnable again.** Six cross-owner tests used to hardcode
-  user B's email (`profile-idor-b@example.com` and siblings), so the first run created
-  those accounts and every rerun died on `EMAIL_EXISTS` until the emulator was wiped.
-  They now share `conftest.py`'s `firebase_second_user` factory, which mints a fresh
-  `uuid4` address per call.
-- Backend `pip install -e .` fails: `pyproject.toml` pins `poetry-core<2.0`, which cannot
-  read the PEP-621 `[project]` table. Worked around with `PYTHONPATH=src`.
-- `tests/conftest.py:113` deadlocks: on the not-ready path `process.stdout.read()` blocks
-  forever because a grandchild holds the pipe open. Fires when port 9099 is already taken.
+**Resolved:**
+- Snapshot baselines (`ios/Orbit/Tests/__Snapshots__/`) are deliberately gitignored:
+  they are machine-specific, so each machine records its own on first run.
+- **The integration suite is re-runnable** (commit `238953d`). Six cross-owner tests used
+  to hardcode user B's email (`profile-idor-b@example.com` and siblings), so the first
+  run created those accounts and every rerun died on `EMAIL_EXISTS` until the emulator
+  was wiped. They now share `conftest.py`'s `firebase_second_user` factory, which mints
+  a fresh `uuid4` address per call.
+- **The XCUITest sign-in account is provisioned by script** (commit `238953d`). Clearing
+  the emulator's accounts also removes it; `scripts/seed_ui_test_user.sh` recreates it.
+- **`pip install -e .` works** (PR #5): the build backend pin moved to
+  `poetry-core>=2.0.0,<3.0.0`, which reads the PEP-621 `[project]` table. The
+  `PYTHONPATH=src` workaround is no longer needed for an editable install.
+- **The emulator fixture no longer hangs on a failed start** (PR #5): its output goes to
+  a temp file instead of a pipe, and it is stopped as a whole process group, so a
+  surviving emulator child can neither block the read nor keep port 9099 bound.
+
+**Still open:**
+- **`GoogleService-Info.plist` holds emulator-only placeholders** (project
+  `demo-orbit-test`) and must be replaced with a real Firebase project's file before
+  shipping. Tracked as a go-live item in `plans/E1-production-deploy-path.md`.
 - Per the runbook these fixes should have been routed to a debugging run on WSL rather
   than patched here; that was a deliberate deviation to get the app running. Fold them
   back upstream.

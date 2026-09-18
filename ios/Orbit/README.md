@@ -2,18 +2,23 @@
 
 Native iOS client for Orbit Fitness & Diet Tracking, replicating
 `design/design_handoff_orbit_swiftui/` (Claude Design export) against the FastAPI backend
-in `src/orbit/`. See root `CLAUDE.md` / `docs/decisions/feature/greenfield/plan.md` §Frontend for the full brief;
-this file covers iOS-specific build/generation mechanics only.
+in `src/orbit/`. See root `CLAUDE.md` / `docs/decisions/feature/greenfield/plan.md`
+§Frontend for the full brief; this file covers iOS-specific build/generation mechanics
+only.
 
 ## Reduced assurance (read this first)
 
-This project is built and reviewed on a **Linux host with no Swift toolchain and no
-Xcode** — nothing here has been compiled or run yet. Every file is authored to the exact
-conventions in `swift-conventions`/`claude-design-to-swiftui`, but genuine compilation,
-test execution, and snapshot review happen on the operator's Mac
-(`plans/00-mac-pipeline-readiness.md` Phase 5). `docs/decisions/feature/greenfield/implementation-progress.md`
-records this for each iOS task as it lands; never read a passing iOS task here as
-"gate-verified" the way a backend task is.
+The pipeline authors this code on a **Linux host with no Swift toolchain and no Xcode**,
+to the conventions in `swift-conventions`/`claude-design-to-swiftui`. Compilation, test
+execution and snapshot review happen on the operator's Mac
+(`plans/00-mac-pipeline-readiness.md` Phase 5).
+
+The greenfield Swift was first compiled and run there after the merge. Fourteen defects
+surfaced and were fixed in PR #3; since then every suite passes on the Mac — 157/157
+Swift Testing units, 50/50 snapshots, 12 XCUITests with 0 failures — as recorded in
+`docs/mac-session-handoff.md`. That is verification by tests and human review; the
+pipeline's deterministic gates still analyze almost no Swift. Never read a passing iOS
+task as "gate-verified" the way a backend task is.
 
 ## Module layout (CLAUDE.md's suggested decomposition, adopted per plan.md §Frontend)
 
@@ -29,16 +34,17 @@ Components/     GlassCard through HeaderWordmark (25 CMP-n components)        �
 Space/          StarfieldView (T17), HeroSceneView + Textures.swift (SceneKit
                 gas-giant/asteroid/ring heroes, T18) — visual fidelity, staged LAST — done
 Figures/        MuscleFigure + FigurePaths, verbatim from figure-paths.md      — T15 (done)
-Resources/      Assets.xcassets, Fonts/*.ttf (+ FONTS-TODO.md); Info.plist,
-                PrivacyInfo.xcprivacy — T13 (done)
+Resources/      Assets.xcassets, Fonts/ (FONTS-TODO.md only — no .ttf bundled yet),
+                Info.plist, PrivacyInfo.xcprivacy, GoogleService-Info.plist
+                (emulator-only placeholders; replace before shipping — E1) — T13 (done)
 Tests/          Swift Testing unit suites (ThemeTests, CoreTests, AppTests,
                 ComponentMathTests, ScreensTests, SpaceTests, HeroSceneTests, …),
-                advisory snapshot suites, Tests/UITests/ — all authored, Mac-only
+                advisory snapshot suites, Tests/UITests/ — run on the Mac only
 ```
 
-**T1–T18 (the full task list) are all COMPLETE** — every module above is authored.
-"(done)" here means authored-to-shape on this Linux host, per the Reduced assurance
-note above; none of it is compiled/run/gate-verified until the Mac-phase.
+**T1–T18 (the full greenfield task list) are all COMPLETE.** "(done)" means authored on
+the Linux host, then compiled, fixed and test-verified on the Mac (PR #3). Per the
+Reduced assurance note above, none of it is gate-verified.
 
 Undepicted screens (sign-in/register — T13; weight-entry sheet, budget/macro-editor
 sheets — T15) follow the design README's own "Extending the UI" conventions — same shared
@@ -50,10 +56,10 @@ T17/T18, layered over `StarfieldView` with a `HeroSceneView` (Home/Fuel/Train on
 
 ## Project file: XcodeGen, not a hand-authored `.xcodeproj` (flagged deviation)
 
-`docs/decisions/feature/greenfield/tasks.md`'s T11 row names `Orbit.xcodeproj` as the expected project file. This
-build uses a checked-in **`project.yml`** (XcodeGen spec) instead, generated into
-`Orbit.xcodeproj` on the Mac. Rationale (recorded per the plan's judgment-call
-precedent — see T2's `muscle_level_templates` design-note in
+`docs/decisions/feature/greenfield/tasks.md`'s T11 row names `Orbit.xcodeproj` as the
+expected project file. This build uses a checked-in **`project.yml`** (XcodeGen spec)
+instead, generated into `Orbit.xcodeproj` on the Mac. Rationale (recorded per the plan's
+judgment-call precedent — see T2's `muscle_level_templates` design-note in
 `docs/decisions/feature/greenfield/implementation-progress.md`):
 
 - A hand-authored `project.pbxproj` is a binary-adjacent, deeply order-and-UUID-sensitive
@@ -88,8 +94,8 @@ added later.
 
 Every color in the app is derived from the active `PalettePreset` via `Theme`
 (`DesignSystem/Theme.swift`) — never a second hex literal outside `DesignSystem/`.
-`scripts/check_no_inline_hex.sh` (run from the repo root) enforces this structurally:
+`scripts/check_no_inline_hex.sh` enforces this structurally. From the repo root:
 
 ```sh
-bash ../../scripts/check_no_inline_hex.sh
+bash scripts/check_no_inline_hex.sh
 ```

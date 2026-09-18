@@ -37,6 +37,13 @@ protocol AuthServiceProtocol: BearerTokenProviding {
     /// order, so a crash mid-sequence never leaves a revoked-server-side but
     /// still-locally-cached token.
     func signOut() async throws
+    /// Clears the locally cached token and signs out of the Firebase SDK,
+    /// with NO server call. Only for when the server-side identity no longer
+    /// exists — after `DELETE /me` succeeds there is nothing left to revoke,
+    /// and `signOut()`'s `POST /me/signout` would just fail with 401.
+    /// Without this, the SDK's persisted session survives the deletion and
+    /// the next launch opens the tab shell as a user that no longer exists.
+    func clearLocalSession() throws
     /// Re-authenticates the current user with their password to obtain a
     /// FRESH ID token (`auth_time` reset to now) — the client-side half of
     /// the backend's `require_fresh_reauth` guard (ASVS 7.5.1) that gates
@@ -119,6 +126,10 @@ final class FirebaseAuthService: AuthServiceProtocol, Sendable {
             preconditionFailure("AuthService.remoteSession must be wired before signOut() is called")
         }
         try await remoteSession.signOut()
+        try clearLocalSession()
+    }
+
+    func clearLocalSession() throws {
         try tokenStore.clear()
         try Auth.auth().signOut()
     }

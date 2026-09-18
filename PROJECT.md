@@ -9,6 +9,11 @@ food logging), native iOS (SwiftUI) over a Python backend. This build is the **g
 run**: the full feature set depicted in the Claude Design export, end-to-end — real auth,
 real persistence, CI gate, deploy path — so future feature-runs extend a working app.
 
+**Status:** greenfield merged 2026-07-26 (PR #1); the iOS app was then compiled, fixed
+and verified on the Mac (PR #3). Every later run, in order, is in `docs/roadmap.md`.
+Development there is local-first until an explicit go-live decision. This file remains
+the greenfield scope summary.
+
 Authoritative brief: `docs/decisions/feature/greenfield/requirements.md` (operator-revised
 2026-07-14). Scope audit of the design:
 `docs/decisions/feature/greenfield/design-audit.md`. Planning treated requirements.md as
