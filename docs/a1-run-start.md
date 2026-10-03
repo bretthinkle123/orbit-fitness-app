@@ -35,19 +35,24 @@ and finished on another. This run starts and ends on the Mac.
    - Three PRs merged on 2026-10-03: the AWS Lambda compute decision + the StoreKit spec
      (#6), CVE bumps for pyjwt/urllib3 plus a rate-limit test de-flake (#7), and this
      checklist. The A1 brief changed in #6, so confirm the pull landed before reading it.
-2. `gh auth status` — the deployment stage needs it
+2. **Re-sync the Python deps** (`poetry install`, or `pip install -e .` in the venv).
+   PR #7 bumped `pyjwt` 2.13.0 → 2.15.1 and `urllib3` 2.7.0 → 2.8.0 in `poetry.lock`, so a
+   venv from before 2026-10-03 is now behind the lockfile. Leaving it stale is how the
+   Tier-2 rate-limit test's `check_revoked` race shows up again (it passed locally on the
+   old pyjwt and failed twice in CI on the new one).
+3. `gh auth status` — the deployment stage needs it
    ([`docs/mac-session-handoff.md`](mac-session-handoff.md)).
-3. Start the stack: `brew services start postgresql@16 redis`, plus Colima for Docker
+4. Start the stack: `brew services start postgresql@16 redis`, plus Colima for Docker
    (`colima start`). The full restart recipe is in `docs/mac-session-handoff.md`.
-4. **Check `.pipeline/waivers.json` exists.** It is gitignored and machine-local, so a
+5. **Check `.pipeline/waivers.json` exists.** It is gitignored and machine-local, so a
    fresh clone has none. If it is missing, re-record the two greenfield waivers with
    `record-waiver.sh`, or the security stage will re-flag them as new findings:
    - ASVS `6.3.3` — "MFA out of scope for greenfield run"
    - ASVS `6.2.x` — "Firebase delegated, with the enable-at-deploy follow-up"
-5. **Put the venv's `bin` on `PATH`** (or activate it). The Postgres fixture shells out to
+6. **Put the venv's `bin` on `PATH`** (or activate it). The Postgres fixture shells out to
    `alembic` by name; without it, every DB-backed integration module errors at setup with
    `FileNotFoundError: 'alembic'`. This cost time on the WSL box on 2026-10-03.
-6. **Confirm `.pipeline/` has no in-flight run marker.** On WSL an aborted A1 attempt from
+7. **Confirm `.pipeline/` has no in-flight run marker.** On WSL an aborted A1 attempt from
    2026-09-06 left `state.json` + `run-started` behind; they were archived to
    `.pipeline/archive/aborted-a1-20260906/`. Handle any Mac leftovers the same way —
    move, don't delete.
