@@ -23,7 +23,7 @@ def _tight_tier2_limit(_wire_real_redis_and_tight_tier2_limit):
 
 
 def test_two_principals_sharing_one_ip_get_independent_tier2_buckets(
-    client, firebase_test_user, firebase_second_user
+    client, firebase_test_user, firebase_second_user, firebase_sign_in
 ):
     """Principal A exhausts their own (limit=1) Tier-2 bucket; principal B —
     a different Firebase user hitting the SAME TestClient (i.e. the same
@@ -34,7 +34,19 @@ def test_two_principals_sharing_one_ip_get_independent_tier2_buckets(
     first_call_for_a = client.post("/me/signout", headers={"Authorization": f"Bearer {token_a}"})
     assert first_call_for_a.status_code == 204
 
-    second_call_for_a = client.post("/me/signout", headers={"Authorization": f"Bearer {token_a}"})
+    # `/me/signout` revokes A's refresh tokens, so re-sending the SAME token
+    # races `check_revoked`: Firebase's `validSince` has one-second
+    # granularity, so whether the revocation is visible yet depends only on
+    # which second each call lands in — 401 on a slow runner, 429 on a fast
+    # one (CI flipped to 401 once a dependency bump shifted the timing).
+    # Tier-2 is keyed on the UID, not the token, so a FRESH token for the
+    # SAME user exercises the exhausted bucket deterministically — and the
+    # sign-in also proves the bucket outlives a token rotation.
+    fresh_token_a = firebase_sign_in(firebase_test_user["email"])
+
+    second_call_for_a = client.post(
+        "/me/signout", headers={"Authorization": f"Bearer {fresh_token_a}"}
+    )
     assert second_call_for_a.status_code == 429
     assert "Retry-After" in second_call_for_a.headers
     assert second_call_for_a.json()["error"]["code"] == "rate_limited"
