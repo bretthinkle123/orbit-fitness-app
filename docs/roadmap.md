@@ -1,6 +1,7 @@
 # Roadmap — ordered feature runs after greenfield
 
-_Last updated 2026-09-17: reordered local-first. The single source of truth for what runs
+_Last updated 2026-09-19: compute target set to AWS Lambda (A2/E1); StoreKit monetization
+specced, unscheduled. 2026-09-17: reordered local-first. The single source of truth for what runs
 after the greenfield run, **in execution order**. One pipeline run per entry; each starts
 with `requirements-elicitation` reading its brief in [`plans/`](../plans/). The entries
 here are one-line summaries; the briefs are the planning-stage context._
@@ -84,7 +85,8 @@ infrastructure. Until the owner explicitly decides to go live:
   build config, `dev-up`/`dev-down`, and a learning doc on what local can't prove.
   → [plans/A1-local-environment.md](../plans/A1-local-environment.md)
 - **A2 — Production Terraform, authored.** The staging/prod envs split, network
-  completion (public subnets/NAT), compute, WAF, alarms, deploy/OIDC bootstrap stack and
+  completion (public subnets/NAT), compute (**AWS Lambda**, owner decision 2026-09-19),
+  WAF, alarms, deploy/OIDC bootstrap stack and
   IAM, plus a cost estimate. Validated offline (`plan` + Checkov); **never applied**.
   → [plans/A2-production-terraform-authoring.md](../plans/A2-production-terraform-authoring.md)
 
@@ -131,13 +133,16 @@ infrastructure. Until the owner explicitly decides to go live:
 
 **— GO-LIVE DECISION (owner) —** Phase E starts only on an explicit owner decision,
 after every Phase A–D feature works locally in the Simulator. Decide **monetization**
-(free vs freemium) here, before E3. If freemium: a StoreKit 2 + entitlement + webhook run
-gets planned, and the coach is gated via C7's entitlement shape.
+(free vs freemium) here, before E3. If freemium: the StoreKit 2 run specced in
+[docs/specs/storekit-monetization.md](specs/storekit-monetization.md) gets scheduled, and
+the coach is gated via C7's entitlement shape. The AWS account is created at the start of
+E1, not earlier, so the free plan's credits aren't spent while development is still
+local (see E1's cost model).
 
 **Phase E — Going live** (parked; briefs keep full go-live detail)
 
-- **E1 — Production deploy path.** Account + budget alert + manual bootstrap, apply A2's
-  Terraform, CI deploy, canary + auto-rollback proven by fault injection, synthetics,
+- **E1 — Production deploy path.** Account (AWS free plan) + budget alert + manual
+  bootstrap, apply A2's Terraform (Lambda compute), CI deploy, canary + auto-rollback proven by fault injection, synthetics,
   Sentry/dSYMs, Firebase password policy (discharges the ASVS 6.2.x waiver). Holds the
   cost model. → [plans/E1-production-deploy-path.md](../plans/E1-production-deploy-path.md)
 - **E2 — SOC visibility & security monitoring.** Detection, paging, GuardDuty,
@@ -204,3 +209,12 @@ gets planned, and the coach is gated via C7's entitlement shape.
 
 _(Payments/subscriptions are not excluded: the monetization decision sits at the go-live
 gate above.)_
+
+## Specced, not scheduled
+Fully specced so the decision is cheap to act on, but deliberately **not** in the run
+order. Planning must not pull these into a run unless the owner schedules them.
+- **Monetization: StoreKit 2 subscriptions ("Orbit Pro").** Gates the C7 coach behind a
+  server-verified entitlement. Apple-signed transactions and App Store Server
+  Notifications are verified in a billing facade. Buildable locally with an Xcode
+  StoreKit config file. Scheduled only if the go-live gate picks freemium.
+  → [docs/specs/storekit-monetization.md](specs/storekit-monetization.md)

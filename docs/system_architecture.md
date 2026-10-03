@@ -310,22 +310,33 @@ flowchart TD
 
 **Deferred (authored in A2 — `plans/A2-production-terraform-authoring.md`; applied at
 go-live in E1 — `plans/E1-production-deploy-path.md`): the compute path.**
-`deploy.yml` already scaffolds the target shape (verify signed image → `terraform apply`
-→ migrate → canary rollout by ALB target-group weight, staging before prod, human
-approval gate on the `production` environment) — but `infra/` does not yet define the
-ALB, ECS cluster/service, or the `envs/` staging/prod split it targets. A1 adds
-`envs/local` (LocalStack); A2 authors the rest; E1 applies it:
+**Compute target: AWS Lambda** (owner decision 2026-09-19, chosen for cost at 1–3
+users over ECS Fargate/App Runner — see A2 § Compute decision). The function runs A1's
+container image in the VPC's private subnets. `deploy.yml` scaffolds the delivery
+chain (verify signed image → `terraform apply` → migrate → canary, staging before prod,
+human approval gate on the `production` environment). It is still written against the
+greenfield-era ECS/ALB shape, and A2 rewrites it for Lambda: publish a version → a
+separate migration function (same image, own handler and role) → a CodeDeploy
+weighted-alias canary with alarm rollback.
+A1 adds `envs/local` (LocalStack); A2 authors the rest; E1 applies it:
 
 ```mermaid
 flowchart LR
-    Internet((Internet)) --> ALB[ALB / target groups — NOT YET PROVISIONED]
-    ALB --> ECS[ECS service — NOT YET PROVISIONED]
-    ECS --> RDS2[(RDS — authored, not applied)]
-    ECS --> Redis2[(ElastiCache — authored, not applied)]
-    ALB -.->|"trusted XFF CIDR (ProxyHeadersMiddleware) — configure when this lands"| ECS
+    Internet((Internet)) --> Door["Front door: CloudFront→Function URL or API Gateway, WAF where it attaches (NOT YET PROVISIONED)"]
+    Door --> Fn["Lambda function, weighted alias (NOT YET PROVISIONED)"]
+    Fn --> RDS2[("RDS (authored, not applied)")]
+    Fn --> Redis2[("Redis: ElastiCache or hosted (authored, not applied)")]
+    Fn -->|"NAT, per request: Firebase revocation check, token keys, Secrets Manager, Sentry"| Internet
 ```
 
-The Tier-1 rate limiter's `ProxyHeadersMiddleware` XFF-trust configuration is a **latent**
-item that only activates once an ALB exists (security-report row 30) — deliberately left
-unconfigured this run because there is no trusted proxy CIDR yet; configuring it against
-no ALB would let any client spoof `X-Forwarded-For` and bypass the throttle.
+The Tier-1 rate limiter's client-IP source is a **latent** item (security-report
+row 30). It stays unconfigured until the front door exists; trusting a proxy header with
+no proxy in front would let any client spoof its IP and bypass the throttle. Under
+Lambda, the greenfield plan (`ProxyHeadersMiddleware` trusting `X-Forwarded-For` from an
+ALB CIDR) is replaced, and the mechanism depends on the Lambda runner:
+- **Mangum:** the source IP comes from the invocation event.
+- **Lambda Web Adapter:** uvicorn sees 127.0.0.1 and, by default, trusts
+  `X-Forwarded-For` from it. The limiter then keys on whatever the front door puts in
+  that header.
+
+A2 pins it as config, with a spoofed-XFF acceptance test per front door.

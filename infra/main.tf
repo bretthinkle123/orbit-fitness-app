@@ -1,8 +1,9 @@
 # Root module — composes the four single-purpose child modules; nothing
 # reaches around the root (`iac-conventions` facade discipline). Authored
 # this run as the data-security BASELINE only (network + data + secrets +
-# observability) — compute/ALB/the envs/ split are deferred with the rest of
-# the compute topology (plan.md Stack notes / §Infrastructure).
+# observability) — compute (now AWS Lambda + front door) and the envs/ split
+# are deferred with the rest of the compute topology (plan.md Stack notes /
+# §Infrastructure; plans/A2-production-terraform-authoring.md).
 
 terraform {
   required_version = ">= 1.9.0"
@@ -57,12 +58,13 @@ module "network" {
   aws_region  = var.aws_region
 }
 
-# The app's future runtime identity (an ECS/Fargate-shaped task role — the
-# compute topology itself is deferred, but the secrets/observability modules
-# both need a principal to attach their least-privilege policies to now, per
-# plan.md's "least-privilege task role scoped to exactly its secrets + RDS
-# connect"). A later compute-topology run attaches real compute to this same
-# role rather than creating a second one.
+# The app's future runtime identity: the Lambda execution role (compute target
+# decided 2026-09-19; plans/A2-production-terraform-authoring.md). The function
+# itself is deferred to A2, but the secrets/observability modules both need a
+# principal to attach their least-privilege policies to now, per plan.md's
+# "least-privilege task role scoped to exactly its secrets + RDS connect". A2
+# attaches the function to this same role rather than creating a second one;
+# the `app_task` name is kept so the modules wired to it don't churn.
 resource "aws_iam_role" "app_task" {
   name = "${local.name_prefix}-task"
 
@@ -70,7 +72,7 @@ resource "aws_iam_role" "app_task" {
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Principal = { Service = "lambda.amazonaws.com" }
       Action    = "sts:AssumeRole"
     }]
   })

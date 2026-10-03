@@ -39,7 +39,8 @@ gate coverage.
 - **Infra:** AWS via Terraform (`infra/`) — greenfield authored the **data-security
   baseline** (RDS, ElastiCache, Secrets Manager, CloudWatch log groups, VPC/security
   groups), validated offline and **never applied** to an AWS account; compute
-  (ECS/ALB/autoscaling) and the staging/prod split are authored in
+  (**AWS Lambda**, container image — owner decision 2026-09-19) and the staging/prod
+  split are authored in
   `plans/A2-production-terraform-authoring.md` and applied only at go-live
   (`plans/E1-production-deploy-path.md`). Until then development is local-first — see
   `docs/roadmap.md`.
@@ -117,8 +118,9 @@ CI is scaffolded in `.github/workflows/`:
   merge commit (never trusts `.pipeline/` artifacts, which are the author's own claims).
 - `deploy.yml` — inert until the operator sets the `DEPLOY_ENABLED` repo variable;
   verifies a signed build (cosign), then `terraform apply` + migrate + canary rollout.
-  The compute topology (ECS/ALB/autoscaling) it targets is not yet provisioned in
-  `infra/` this run — see `docs/system_architecture.md` §Deployment topology,
+  It is still ECS/ALB-shaped from the greenfield scaffold; A2 rewrites it for the
+  Lambda target (weighted alias + CodeDeploy canary), which is not yet provisioned in
+  `infra/` — see `docs/system_architecture.md` §Deployment topology,
   `plans/A2-production-terraform-authoring.md` (authoring) and
   `plans/E1-production-deploy-path.md` (go-live apply).
 - `terraform apply` never runs inside this pipeline; only in CI, after merge.

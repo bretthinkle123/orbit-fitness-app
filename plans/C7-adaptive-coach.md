@@ -64,7 +64,9 @@ This is the first *scheduled* (weekly, stateful) computation in the system.
 - Entitlement check via the auth/claims facade (a `require_entitlement("coach")` shape).
 - The free tier keeps the static banner.
 - StoreKit/webhook work is its own planned run when the decision is taken; the coach only
-  consumes the entitlement flag.
+  consumes the entitlement flag. That run is specced (unscheduled) in
+  [docs/specs/storekit-monetization.md](../docs/specs/storekit-monetization.md). Keep the
+  coach's gate point a single dependency so `require_entitlement("coach")` drops in.
 
 ## Acceptance sketch
 - Fixture series (steady loss / gain / noisy / sparse) → expected TDEE ± tolerance and

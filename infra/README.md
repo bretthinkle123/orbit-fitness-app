@@ -6,12 +6,15 @@
 
 Provisions the **data-security baseline** for Orbit on AWS: persistence, secrets,
 observability, and network isolation. This run deliberately **defers the compute
-topology** (App Runner/ECS + ALB + autoscaling + the `envs/` staging/prod split + WAF)
-to later runs — see `docs/system_architecture.md` §Deployment topology,
+topology** (the Lambda function + front door + the `envs/` staging/prod split + WAF;
+Lambda chosen over ECS/App Runner on 2026-09-19) to later runs — see `docs/system_architecture.md` §Deployment topology,
 `plans/A1-local-environment.md` (`envs/local` on LocalStack),
 `plans/A2-production-terraform-authoring.md` (staging/prod, authored, never applied) and
 `plans/E1-production-deploy-path.md` (go-live apply). The backend runs as a direct
 process this run (CLAUDE.md), reading secrets from Secrets Manager/SSM in deploy.
+`main.tf`'s `app_task` role is the future Lambda execution role (it trusts
+`lambda.amazonaws.com`); the name predates the Lambda decision and is kept to avoid
+churn.
 
 ## Modules
 
