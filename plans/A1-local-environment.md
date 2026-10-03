@@ -22,7 +22,16 @@ repeatable local stack. Cost: $0.
 ## Scope
 - **Dockerfile** for the backend per delivery-conventions: pinned base-image digest,
   multi-stage, non-root, healthcheck, hadolint-clean. This is the same image E1 later
-  deploys, so it is never a local-only variant.
+  deploys, so it is never a local-only variant. **The deploy target is AWS Lambda**
+  (owner decision 2026-09-19; see [A2 § Compute decision](A2-production-terraform-authoring.md#compute-decision-owner-2026-09-19-aws-lambda-not-fargateapp-runner)).
+  So the image must also run as a Lambda container image:
+  - If A2's recommended runner is adopted, the AWS Lambda Web Adapter is copied in as an
+    extension. It is inert outside Lambda, so compose still runs plain uvicorn.
+  - Nothing Lambda-specific goes in `src/orbit/`.
+  - Keep the import-time work small: it becomes Lambda cold-start latency.
+
+  Optional stretch goal: invoke the image as a Lambda on LocalStack, to rehearse the
+  deploy shape.
 - **docker-compose** services:
   - `api`, built from the Dockerfile
   - `postgres` pinned to the RDS engine version in `infra/modules/data` (16.6)
@@ -31,7 +40,8 @@ repeatable local stack. Cost: $0.
   - The Firebase Auth emulator
   - LocalStack, pinned
   - A one-off `migrate` service running `alembic upgrade head`. This rehearses the
-    "migrations as a one-off task" shape E1 is expected to use.
+    "migrations as a one-off run of the same image" shape. On Lambda this becomes a
+    separate migration function with its own small handler (A2).
 - **Pointing the AWS SDK at LocalStack is config-only.** boto3 (pinned 1.43.40) honors
   the `AWS_ENDPOINT_URL` environment variable natively, so no code branch is needed. No
   `if local:` anywhere in `src/orbit/`.
@@ -62,6 +72,24 @@ repeatable local stack. Cost: $0.
   live-only gaps below.
 
 ## Decisions for run start
+- **Lambda runner, now or in A2.** A1 builds the Dockerfile, but A2 picks the runner
+  (Lambda Web Adapter vs Mangum). So decide: does A1 add the LWA extension now on A2's
+  recommendation, or ship a plain uvicorn image and let A2/E1 add the Lambda pieces?
+  Adding it now keeps one image; deferring avoids building on a choice A2 could change.
+- **Which machine runs this run, and what that costs.** This is the most
+  machine-specific run in the roadmap: the operator has a WSL/Linux box (no Xcode) and
+  an M2 Mac (Xcode, Colima, brew Postgres/Redis — see docs/mac-session-handoff.md). If
+  it runs on WSL, three things must be handled in-run, not discovered on the Mac:
+  - **Pin a multi-arch manifest digest**, not a per-architecture one. A digest pinned
+    from an amd64 host will not run on the Mac's arm64, and delivery-conventions'
+    digest-pin rule doesn't by itself prevent that.
+  - **Port conflicts on the Mac.** It already runs brew `postgresql@16` and `redis` on
+    5432/6379, which compose would collide with. Either map different host ports, or
+    have `dev-up.sh` detect the conflict and say so.
+  - **The iOS acceptance items cannot be proven on WSL** (Xcode build, Simulator
+    done-flow, xcconfig base URL, XCUITest). They are recorded as owed to a Mac
+    verification session, never checked off from Linux (standing rule 5's honesty rule
+    applied to the Simulator).
 - **LocalStack terms:** confirm at run start what LocalStack's free offering currently
   includes and requires. Its licensing and free-tier contents have been changing. If the
   free tier no longer fits, the fallback is **moto server** (Apache-2.0; covers S3, KMS,
@@ -75,7 +103,7 @@ repeatable local stack. Cost: $0.
 - IAM enforcement — LocalStack accepts calls a real policy would deny
 - VPC routing, security groups, NAT
 - RDS and ElastiCache behavior
-- ECS/ALB/WAF
+- Lambda cold starts, concurrency limits and VPC networking; the front door + WAF
 - Real alarm → SNS delivery
 - Quotas and eventual consistency
 

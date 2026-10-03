@@ -42,8 +42,18 @@ app-store-submission-requirements skill is the checklist authority)._
 
 ## Key decisions
 - **Monetization: free vs freemium, decided before this run.** It was deferred from the
-  coach run (C7, note-only). If freemium: plan the StoreKit + entitlement + webhook run
-  before submission, and gate the coach via C7's entitlement shape.
+  coach run (C7, note-only). If freemium: schedule the StoreKit run specced in
+  [docs/specs/storekit-monetization.md](../docs/specs/storekit-monetization.md) before
+  submission, and gate the coach via C7's entitlement shape. Its App Store Connect
+  tail lands here:
+  - Paid Applications Agreement + banking/tax
+  - Small Business Program enrollment
+  - products + Billing Grace Period in App Store Connect
+  - the App Store Server API key
+  - sandbox purchases against the E1-deployed notification URL
+  - the TestFlight free-Pro decision (spec § Security)
+  - the paywall review screenshot
+  - the Purchase History privacy label (authored during the run itself, verified here)
 - Photo-button presentation at launch (hide vs "coming soon")
 - Phased release %
 - Launch markets. If EU is included: GDPR lawful-basis/consent readiness is covered by

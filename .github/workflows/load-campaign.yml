@@ -1,3 +1,6 @@
+# NOTE (2026-09-19): the compute target is now AWS Lambda, not ECS. The ECS/ALB
+# commands below are the greenfield scaffold; A2 (plans/A2-production-terraform-
+# authoring.md) rewrites this workflow for Lambda before it is ever enabled.
 # load-campaign.yml — sustained load + failover validation (PR N / M3, N4).
 # NOT in the PR path (a campaign in every PR is cost without signal). Manually dispatched,
 # plus weekly scheduled, ALWAYS against STAGING — never prod, never localhost.

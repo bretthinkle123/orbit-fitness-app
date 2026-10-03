@@ -32,7 +32,10 @@ committed file, a PR description, or anything else that leaves this machine.
 - Auth provider: Firebase Auth (email/password); backend verifies Firebase ID tokens
   behind a `require_auth` facade.
 - Observability: CloudWatch + X-Ray + Sentry; structlog structured logs.
-- Packaging / runtime: direct process (backend).
+- Packaging / runtime: direct process (backend) locally; the deploy target is **AWS
+  Lambda** running A1's container image (owner decision 2026-09-19, over ECS Fargate/App
+  Runner, for cost at 1–3 users — see `plans/A2-production-terraform-authoring.md`
+  § Compute decision). Nothing Lambda-specific goes in `src/orbit/`.
 
 ## Stack notes
 - **Native iOS (SwiftUI) is reduced-assurance** for the pipeline's deterministic gates —
