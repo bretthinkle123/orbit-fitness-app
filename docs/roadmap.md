@@ -17,6 +17,10 @@ _Deferral rule used for the greenfield scope: a feature whose **flow the design 
 was built; a feature that existed in the design only as a button/label/number with no
 flow behind it shipped as a stub/default and lives here._
 
+_Not a run: [docs/a1-run-start.md](a1-run-start.md) is the launch checklist for the
+**A1** run specifically — which machine it belongs on, the environment pre-flight, and the
+decisions it will ask about. Retired at A1 closeout._
+
 _Not a run: [plans/00-mac-pipeline-readiness.md](../plans/00-mac-pipeline-readiness.md)
 is a self-contained runbook a fresh Claude session on the operator's Mac executes to
 verify (and fix) that machine's readiness to run this pipeline and build/test the iOS app._
