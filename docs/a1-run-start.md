@@ -52,7 +52,25 @@ and finished on another. This run starts and ends on the Mac.
 6. **Put the venv's `bin` on `PATH`** (or activate it). The Postgres fixture shells out to
    `alembic` by name; without it, every DB-backed integration module errors at setup with
    `FileNotFoundError: 'alembic'`. This cost time on the WSL box on 2026-10-03.
-7. **Confirm `.pipeline/` has no in-flight run marker.** On WSL an aborted A1 attempt from
+7. **Push the engine clone's macOS shebang fixes upstream — before refreshing that
+   clone.** Three hooks (`asvs-sast.sh`, `tree-hygiene`, `doc-identifiers`) use the
+   bash-4+ builtin `mapfile` under a hardcoded `#!/bin/bash`, which macOS's bash 3.2
+   cannot run; `PATH` cannot fix a shebang and SIP forbids replacing `/bin/bash`. The
+   pre-authorized fix (`#!/usr/bin/env bash`) was applied on 2026-08-24 but **exists only
+   in this Mac's `~/repos/claude-agentic-workflow` clone, uncommitted**
+   ([`docs/mac-session-handoff.md`](mac-session-handoff.md),
+   [`plans/00-mac-pipeline-readiness.md`](../plans/00-mac-pipeline-readiness.md) § the
+   shebang trap). So:
+   - `git -C ~/repos/claude-agentic-workflow status` — if those edits are still
+     uncommitted, push them as a **topic branch** (e.g. `fix/macos-shebangs`) and merge to
+     `main`. The fix is strictly more portable, so both machines want it.
+   - **No per-machine branches** in that repo: its convention is topic branches
+     (`feat/…`, `docs/…`, `audit/…`) merging to `main`, and the installer installs from
+     whatever clone it runs in — two long-lived machine branches would mean two engines
+     with no source of truth.
+   - Refreshing or reinstalling the clone before pushing silently reverts all three
+     hooks.
+8. **Confirm `.pipeline/` has no in-flight run marker.** On WSL an aborted A1 attempt from
    2026-09-06 left `state.json` + `run-started` behind; they were archived to
    `.pipeline/archive/aborted-a1-20260906/`. Handle any Mac leftovers the same way —
    move, don't delete.
@@ -100,6 +118,23 @@ start" carries these in full. In short:
 - The iOS app, its test suites and the pipeline engine were all green on this Mac as of
   PR #3: 142 backend tests, 157 Swift unit tests, 12 XCUITests, and 259 engine eval checks
   across 18 suites (`docs/mac-session-handoff.md`).
+
+## At A1 closeout: where this file's contents go
+
+Retire this file, but **move its durable parts rather than deleting them** — that is the
+structure for every later repo handoff:
+
+- **The generic pre-flight** (steps 1–8 above, minus the PR-specific notes) folds into
+  [`docs/mac-session-handoff.md`](mac-session-handoff.md), which is already the Mac
+  environment reference. Then every future run inherits it instead of rediscovering
+  `alembic` on `PATH`, the waiver re-recording, and the engine shebangs.
+- **The A1-specific parts** (its six run-start decisions, the "context that changed"
+  section) die with the run. The decisions are recorded in A1's own brief and, once taken,
+  in the run's retained artifacts under `docs/decisions/feature/<feature>/`.
+- **Future runs do not need a file like this.** A run's brief in `plans/`, the roadmap's
+  standing rules, and `docs/mac-session-handoff.md` are the handoff. Write a per-run
+  checklist only when a run changes machines, or carries a cross-machine trap (the
+  multi-arch digest and the brew port collision are why A1 got one).
 
 ## Honesty rules that apply to this run
 
