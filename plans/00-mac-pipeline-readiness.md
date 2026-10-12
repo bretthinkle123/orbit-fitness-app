@@ -39,12 +39,18 @@ two real macOS risk classes (grep-verified) are: (a) bash-4+ builtins under hard
 it — and (b) GNU-only flags or commands missing from stock macOS (`stat -c`,
 `sha256sum`, `timeout`, `date -d`).**
 
-**WSL-side prerequisite (operator, before the first Mac readiness run):** push the
-engine repo from the WSL machine — as of 2026-07-26 `~/repos/claude-agentic-workflow`
-is 2 commits ahead of origin/main AND holds the untracked greenfield run-evidence
-(`examples/orbit-fitness-app/run-evidence/greenfield/` — 21 transcripts + sha256
-manifest, preserved at closeout). Commit the evidence and push both; a Mac clone of
-origin today gets a stale engine and no run evidence.
+**WSL-side prerequisite (operator, before the first Mac readiness run):** the engine
+clone on the WSL machine (`~/repos/claude-agentic-workflow`) has been ahead of
+origin/main since 2026-07-26, so a Mac clone of origin gets a stale engine. Pushing the
+engine's own commits is still worth doing for that reason.
+
+**The Orbit greenfield run-evidence set stays LOCAL — leave it untracked, and never push
+it** (owner decision 2026-10-12, after a pre-publish secret scan found content that must
+not be published to that public repo; the operator holds the detail privately). Nothing
+reads `examples/*/run-evidence/` — no hook, script, eval suite or workflow — so neither
+this Mac nor this repo needs it: it is an archival trace, and the durable record of that
+run is committed at `docs/decisions/feature/greenfield/`. If the set is ever revisited,
+scan before publishing and redact first.
 
 ## Fix policy (what you may do without asking)
 
