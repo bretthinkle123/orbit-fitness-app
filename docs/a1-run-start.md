@@ -31,6 +31,13 @@ and finished on another. This run starts and ends on the Mac.
 
 ## Before starting the run
 
+**Run `bash scripts/mac-preflight.sh` first.** It checks every step below and prints a
+PASS/WARN/FAIL line each, with the fix command on every failure. It changes nothing: no
+installs, no services started, and it never writes a `.pipeline` run marker. The steps
+are spelled out here anyway, because the script reports what is wrong, not why it
+matters.
+
+
 1. `cd ~/repos/orbit-fitness-app && git checkout main && git pull`
    - Three PRs merged on 2026-10-03: the AWS Lambda compute decision + the StoreKit spec
      (#6), CVE bumps for pyjwt/urllib3 plus a rate-limit test de-flake (#7), and this
