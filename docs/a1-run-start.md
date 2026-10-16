@@ -8,6 +8,31 @@ checklist, not a living reference._
 Everything here is derived from committed docs, cited inline. Where this file and a cited
 doc disagree, **the cited doc wins**: it is maintained, this one is not.
 
+## Start here — the two messages to paste
+
+**First, in a terminal** (the session needs the pulled files to read them):
+
+```sh
+cd ~/repos/orbit-fitness-app && git pull
+```
+
+**Then paste this to the session:**
+
+```
+Read docs/a1-run-start.md, then run bash scripts/mac-preflight.sh and tell me
+what fails. Don't start the A1 run until the pre-flight is clean.
+```
+
+**Once the pre-flight reports READY, paste this:**
+
+```
+Start the A1 run: read plans/A1-local-environment.md and begin with
+requirements-elicitation.
+```
+
+The run branches off `main` by itself — no branch needs creating by hand. The rest of
+this file is what the session reads to act on those two messages.
+
 ## What the run is
 
 **A1 — Local environment**, the first run of the post-greenfield roadmap. Brief:
