@@ -37,6 +37,18 @@ installs, no services started, and it never writes a `.pipeline` run marker. The
 are spelled out here anyway, because the script reports what is wrong, not why it
 matters.
 
+**Three failures are expected on this Mac's first run of it** (as of 2026-10-16), because
+this machine has been idle since 2026-08-26 while the repo moved on:
+
+| Expected | Why | Fix |
+|---|---|---|
+| `gh auth` | tokens expire; the WSL box's died after ~6 weeks, and this one was last used 2026-08-26 | `gh auth login -h github.com` |
+| engine shebang fixes uncommitted | they have never been pushed (step 7) | push them as a topic branch **before** refreshing that clone |
+| `pyjwt` / `urllib3` / `mako` behind the lockfile | three CVE bumps landed 2026-10-03 and 2026-10-12 | `poetry install` |
+
+Anything else it reports is new information — read it rather than assuming it is stale
+state.
+
 
 1. `cd ~/repos/orbit-fitness-app && git checkout main && git pull`
    - Three PRs merged on 2026-10-03: the AWS Lambda compute decision + the StoreKit spec
