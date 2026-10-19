@@ -101,12 +101,26 @@ if [ -d "$HOME/.claude/agents" ]; then
   [ "$n" -ge 10 ] && ok "engine installed ($n agent definitions in ~/.claude/agents)" || warn "only $n agent definitions found" "re-run install-global.sh from the engine clone"
 else bad "~/.claude/agents missing" "run scripts/install-global.sh from the engine clone"; fi
 
-head_ "8. No run already in flight"
-INFLIGHT=""
-[ -f .pipeline/state.json ] && INFLIGHT="$INFLIGHT state.json"
-[ -f .pipeline/run-started ] && INFLIGHT="$INFLIGHT run-started"
-if [ -z "$INFLIGHT" ]; then ok ".pipeline has no in-flight run marker"
-else warn "leftover marker(s):$INFLIGHT" "if no run is active, move them to .pipeline/archive/<name>/ — move, don't delete"; fi
+head_ "8. Bootstrapped, with no run already in flight"
+# `state.json` is NOT a run marker. `bootstrap-project.sh` creates it as the project
+# seed (`{"debug_retry_count":…,"max_retries":3}`), and approve-plan.sh,
+# approve-diff.sh and record-waiver.sh all REFUSE without it ("not a bootstrapped
+# pipeline project"). This check used to list it as a leftover and advise archiving
+# it — following that would have broken the waiver recorder, the very thing check 5
+# tells you to run. `run-started` is the real per-feature anchor: dast-review.sh and
+# log-run.sh both date their evidence against it.
+#
+# The absent case is a FAIL, not a pass. Before 2026-10-19 this check reported
+# "no in-flight run marker" on a project with no `.pipeline/` AT ALL, so a machine
+# that had never been bootstrapped looked clean here while check 5 failed for a
+# reason it could not explain.
+if [ -f .pipeline/run-started ]; then
+  warn "leftover marker: run-started" "if no run is active, move it to .pipeline/archive/<name>/ — move, don't delete"
+elif [ -f .pipeline/state.json ]; then
+  ok ".pipeline bootstrapped, no in-flight run"
+else
+  bad ".pipeline/state.json absent — project never bootstrapped" "bash ~/.claude/pipeline-templates/bootstrap-project.sh  (record-waiver.sh in check 5 refuses without it)"
+fi
 
 head_ "9. iOS toolchain"
 if [ "$IS_MAC" = "1" ]; then
