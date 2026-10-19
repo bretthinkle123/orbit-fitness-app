@@ -32,9 +32,11 @@ Cold-start latency is measured and reported separately, never averaged into it.
 What this changes, and what A2 must decide at run start (verified in an audit on
 2026-09-19; re-check anything marked unverified):
 - **Packaging: a Lambda container image (recommended) vs a zip.**
-  - A1's Dockerfile builds one image for local compose and for Lambda. The image path
-    keeps delivery-conventions intact: ECR, immutable SHA tags, cosign, SBOM,
-    verify-before-rollout.
+  - A1's Dockerfile builds a **plain uvicorn image for local compose only** — making it
+    also run as a Lambda is A2's work, NOT inherited. See "Inherited from A1" below; this
+    line previously claimed A1 delivered one image for both, which A1's run-start decision
+    on 2026-10-19 reversed. The image path still keeps delivery-conventions intact: ECR,
+    immutable SHA tags, cosign, SBOM, verify-before-rollout.
   - Runner options:
     - **AWS Lambda Web Adapter (LWA)**, copied into `/opt/extensions` and inert outside
       Lambda. uvicorn runs unchanged, and `src/orbit/` has no Lambda-only entrypoint.
@@ -158,6 +160,27 @@ What this changes, and what A2 must decide at run start (verified in an audit on
 - **Stale ALB wording in code comments** (`src/orbit/edge/bodysize.py`,
   `src/orbit/logging/__init__.py`'s "deployed ALB/X-Ray header") gets corrected in this
   run, once the front door is chosen.
+
+## Inherited from A1 (recorded 2026-10-19 at A1 run start)
+
+_Consequences of A1's run-start decisions that land on A2. Recorded here, in a committed
+brief, because `.pipeline/requirements.md` is gitignored and the next run overwrites it —
+roadmap.md's convention is that an obligation is "recorded in the run's brief/PR as owed".
+Each item says whether it is firm or conditional on how A1 actually finishes; A2's
+requirements-elicitation should confirm the conditional ones against A1's closeout rather
+than assume them._
+
+| # | Inherited | Firm or conditional |
+|---|---|---|
+| 1 | **Make A1's image Lambda-capable.** A1 ships plain uvicorn; A2 both picks the runner (LWA vs Mangum) AND adds it. This is more than the runner choice the brief originally anticipated. | **Firm** |
+| 2 | **Move `infra/main.tf` into `envs/prod`.** Unchanged — A1 explicitly leaves today's root composition where it is. | **Firm** (already in Scope) |
+| 3 | **S3 + DynamoDB remote state.** A1 stages it: local state file first, then upgrade. If the upgrade does not land, the remote-state pattern is owed here. | **Conditional** on A1 closeout |
+| 4 | **Prove Terraform against real AWS.** A1 runs on **moto**, not LocalStack (LocalStack's free tier became non-commercial-only in 2026 and Orbit is proprietary/monetized). moto has no `tflocal`, so if it cannot reconcile cleanly enough for an idempotent `plan`, that validation shifts here. | **Conditional** on A1 closeout |
+| 5 | **Rehearse the Lambda invocation shape.** A1's optional "invoke the image as a Lambda locally" is dropped — real container-image Lambdas are a LocalStack paid feature and moto does not provide it. First real exercise is now against AWS. | **Firm** (dropped from A1) |
+
+**Also note for A2's own emulator assumptions:** anywhere this brief or E1 says "LocalStack",
+A1 built on moto instead. Services proven locally are limited to the eight moto covers —
+Secrets Manager, SSM, KMS, CloudWatch Logs, IAM, S3, SNS, DynamoDB.
 
 ## Scope
 - **The `infra/envs/` split**: `envs/staging` and `envs/prod` roots alongside A1's
