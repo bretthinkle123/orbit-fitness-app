@@ -6,6 +6,16 @@ fields as it adds them (roadmap standing rule 2) instead of one large retrofit m
 Consumed by requirements-elicitation + planning at run start. Local, with KMS via
 LocalStack; cost $0._
 
+> **Emulator caveat (recorded 2026-10-19, A1 run start).** A1 built the local stack on
+> **moto**, not LocalStack (see [`docs/roadmap.md`](../docs/roadmap.md) for why — LocalStack's
+> free tier became non-commercial-only and Orbit is proprietary/monetized). This brief's
+> local-KMS assumption was written against LocalStack and **has not been re-verified
+> against moto**, which is an SDK-level mock whose fidelity differs service by service.
+> Confirm that moto's KMS performs real envelope encryption (GenerateDataKey/Decrypt) well enough for the crypto facade's round-trip test at THIS run's start before planning depends on it; if moto falls short,
+> the honest options are a real-AWS check in Phase E or an explicitly recorded local gap —
+> never a faked local pass.
+
+
 ## Goal
 Health data is encrypted at the field level before any feature run adds more of it, and
 the app obtains explicit consent before processing it.

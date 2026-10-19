@@ -25,6 +25,24 @@ _Not a run: [plans/00-mac-pipeline-readiness.md](../plans/00-mac-pipeline-readin
 is a self-contained runbook a fresh Claude session on the operator's Mac executes to
 verify (and fix) that machine's readiness to run this pipeline and build/test the iOS app._
 
+> **Emulator change, 2026-10-19 (A1 run start): the local AWS emulator is _moto_, not
+> LocalStack.** LocalStack ended Community-edition support on 2026-03-23, now requires an
+> auth token merely to start, and its remaining free plans are **non-commercial only** —
+> while Orbit is `license = "Proprietary"` with StoreKit monetization and an App Store
+> phase, so the free tier does not legitimately apply and commercial use is ~$23–39/month
+> against briefs that all say "cost $0". moto is Apache-2.0, needs no account, and was
+> verified to cover the eight services A1 needs: Secrets Manager, SSM, KMS, CloudWatch
+> Logs, IAM, S3, SNS, DynamoDB.
+>
+> **Every "LocalStack" below and in the run briefs should be read as "the local AWS
+> emulator".** The name is stale, but worse, some statements are *capability* claims about
+> LocalStack specifically — e.g. D1's note on S3 object-expiry enforcement, B2's local KMS
+> envelope encryption, B1's CloudWatch Logs path. **Those were never re-verified against
+> moto.** Each affected run must confirm its own emulator capability at run start rather
+> than inheriting the claim; moto is an SDK-level mock and its fidelity differs from
+> LocalStack's service-by-service. Do not mass-rename these references — verify, then
+> correct the ones you have proven.
+
 ## Development posture: local-first until an explicit go-live decision
 
 The owner's goal is learning — building the app, and building and *maintaining* AWS

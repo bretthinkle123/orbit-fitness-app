@@ -25,8 +25,11 @@ with rollback and someone-is-watching wiring — the launch prerequisite.
   [A2 § Compute decision](A2-production-terraform-authoring.md#compute-decision-owner-2026-09-19-aws-lambda-not-fargateapp-runner)).
   Apply A2's function, alias, front door and reserved-concurrency cap. Measure real cold
   starts; the p95 budget is judged warm.
-- **Containerization:** A1's Dockerfile image is what Lambda runs (container-image
-  Lambda, unless A2 chose zip). It goes through ECR per delivery-conventions (immutable
+- **Containerization:** A1's Dockerfile image, **as made Lambda-capable by A2**, is what
+  Lambda runs (container-image Lambda, unless A2 chose zip). A1 ships a plain uvicorn
+  image for local compose only — its run-start decision on 2026-10-19 deferred every
+  Lambda piece to A2, so do not expect a Lambda-ready image to arrive straight from A1
+  (see A2 § "Inherited from A1"). It goes through ECR per delivery-conventions (immutable
   SHA tags, cosign signing, SBOM, SLSA attestation, verify-before-rollout).
 - **`envs/` staging/prod split** in Terraform; staging seeded (incl. DAST user) so k6 and
   ZAP Layers 2–3 (`dast-plan.md`) run against staging in CI.

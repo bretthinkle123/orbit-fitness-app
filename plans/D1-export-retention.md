@@ -5,6 +5,16 @@ before any EU marketing push (GDPR Art. 20 portability). The CCPA access right a
 California users regardless. Consumed by requirements-elicitation + planning at run start.
 Local, with S3 via LocalStack; cost $0._
 
+> **Emulator caveat (recorded 2026-10-19, A1 run start).** A1 built the local stack on
+> **moto**, not LocalStack (see [`docs/roadmap.md`](../docs/roadmap.md) for why — LocalStack's
+> free tier became non-commercial-only and Orbit is proprietary/monetized). This brief's
+> local-S3 assumption was written against LocalStack and **has not been re-verified
+> against moto**, which is an SDK-level mock whose fidelity differs service by service.
+> Confirm that moto's S3 supports presigned URLs AND actually enforces lifecycle object expiry — LocalStack was already doubted on the latter in this brief at THIS run's start before planning depends on it; if moto falls short,
+> the honest options are a real-AWS check in Phase E or an explicitly recorded local gap —
+> never a faked local pass.
+
+
 ## Goal
 A user can export everything Orbit holds about them in a portable format, and the
 declared retention policy is enforced by machinery rather than by promise.
