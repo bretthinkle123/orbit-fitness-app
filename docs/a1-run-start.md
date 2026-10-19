@@ -103,10 +103,42 @@ state.
    only the waivers, and on a machine with no `.pipeline/` it was unrunnable.)
 
    ```sh
-   bash ~/.claude/pipeline-templates/bootstrap-project.sh   # creates .pipeline/state.json
+   # Pass the smoke flags — a bare bootstrap does NOT write .pipeline/smoke.env, and
+   # the hook's built-in defaults (`src.main:app`, `python -c "import src.main"`) are
+   # wrong for this repo, which is `src.orbit.main:app`. Without them the smoke check
+   # fails mid-run on a default that was never Orbit's. Nothing in the pre-flight
+   # catches this, so it looks READY right up until the first stage that smokes.
+   bash ~/.claude/pipeline-templates/bootstrap-project.sh \
+     --start ".venv/bin/python -m uvicorn src.orbit.main:app --host 0.0.0.0 --port 8000" \
+     --health "http://localhost:8000/health" \
+     --test ".venv/bin/python -m pytest --cov=src --cov-fail-under=80"
+
    bash ~/.claude/hooks/record-waiver.sh                    # asvs / 6.3.3
    bash ~/.claude/hooks/record-waiver.sh                    # asvs / 6.2.x
    ```
+
+   `src.orbit.main:app` needs no `PYTHONPATH`: `src/orbit/main.py` imports its own
+   package relatively (`from .config.settings import …`), and `src/` resolves as a
+   namespace package, so the CLAUDE.md form runs as written — verified by starting it
+   and getting a 200 from `/health`.
+
+   Then append a startup allowance, because `SMOKE_STARTUP_WAIT` is a **fixed sleep
+   followed by a single curl**, not a retry budget — an app slower than the wait fails
+   outright. A cold start measured 3s here against the 5s default, on a Mac at ~95%
+   disk with the simulator, Postgres, Redis and the emulator resident:
+
+   ```sh
+   echo 'export SMOKE_STARTUP_WAIT=12' >> .pipeline/smoke.env
+   ```
+
+   Confirm it works before starting the run — `bash ~/.claude/hooks/smoke-check.sh`
+   should print `PASS — http://localhost:8000/health responded 200` and exit 0.
+
+   One caveat if you pass `--start`/`--test`: bootstrap also derives Bash allow rules
+   into `.claude/settings.json`, which IS tracked. On this repo it added only
+   `Bash(.venv/bin/python -m:*)`, already covered by the existing
+   `Bash(.venv/bin/python:*)` — a redundant no-op worth reverting to keep the tree
+   clean. Check `git status` after bootstrapping and revert if that is all it did.
 
    Bootstrap is safe to re-run: every write is guarded by a `[skip] already exists`
    check, so a committed `CLAUDE.md`, `.claude/settings.json`, skills and CI workflow
