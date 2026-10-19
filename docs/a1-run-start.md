@@ -62,14 +62,19 @@ installs, no services started, and it never writes a `.pipeline` run marker. The
 are spelled out here anyway, because the script reports what is wrong, not why it
 matters.
 
-**Three failures are expected on this Mac's first run of it** (as of 2026-10-16), because
-this machine has been idle since 2026-08-26 while the repo moved on:
+**Three failures were expected on this Mac's first run of it** (as written 2026-10-16),
+because the machine had been idle since 2026-08-26 while the repo moved on:
 
-| Expected | Why | Fix |
+| Expected | Why | Status as of 2026-10-19 |
 |---|---|---|
-| `gh auth` | tokens expire; the WSL box's died after ~6 weeks, and this one was last used 2026-08-26 | `gh auth login -h github.com` |
-| engine shebang fixes uncommitted | they have never been pushed (step 7) | push them as a topic branch **before** refreshing that clone |
-| `pyjwt` / `urllib3` / `mako` behind the lockfile | three CVE bumps landed 2026-10-03 and 2026-10-12 | `poetry install` |
+| `gh auth` | tokens expire; the WSL box's died after ~6 weeks, and this one was last used 2026-08-26 | **did not occur** — the Mac's token was still valid |
+| engine shebang fixes uncommitted | they had never been pushed (step 7) | **done** — pushed as `fix/macos-shebangs`; see step 7 |
+| `pyjwt` / `urllib3` / `mako` behind the lockfile | three CVE bumps landed 2026-10-03 and 2026-10-12 | **done** — `poetry install` re-synced the venv |
+
+The 2026-10-19 pre-flight also surfaced three the table did not predict, all since
+resolved or reassigned: Docker unreachable (`colima start`), `alembic` not on `PATH`
+(step 6 — activate the venv **before** running the pre-flight, or it reports a missing
+alembic that is in fact installed), and no `.pipeline/` at all (step 5, now bootstrapped).
 
 Anything else it reports is new information — read it rather than assuming it is stale
 state.
@@ -88,11 +93,43 @@ state.
    ([`docs/mac-session-handoff.md`](mac-session-handoff.md)).
 4. Start the stack: `brew services start postgresql@16 redis`, plus Colima for Docker
    (`colima start`). The full restart recipe is in `docs/mac-session-handoff.md`.
-5. **Check `.pipeline/waivers.json` exists.** It is gitignored and machine-local, so a
-   fresh clone has none. If it is missing, re-record the two greenfield waivers with
-   `record-waiver.sh`, or the security stage will re-flag them as new findings:
-   - ASVS `6.3.3` — "MFA out of scope for greenfield run"
-   - ASVS `6.2.x` — "Firebase delegated, with the enable-at-deploy follow-up"
+5. **Bootstrap `.pipeline/` FIRST, then record the waivers — in that order.**
+
+   `.pipeline/` is gitignored and machine-local, so a fresh clone has neither the
+   directory nor `waivers.json`, and `record-waiver.sh` refuses outright without
+   `.pipeline/state.json` ("not a bootstrapped pipeline project"). Recording the
+   waivers before bootstrapping therefore cannot work — the order below is the
+   dependency, not a preference. (Corrected 2026-10-19: this step previously named
+   only the waivers, and on a machine with no `.pipeline/` it was unrunnable.)
+
+   ```sh
+   bash ~/.claude/pipeline-templates/bootstrap-project.sh   # creates .pipeline/state.json
+   bash ~/.claude/hooks/record-waiver.sh                    # asvs / 6.3.3
+   bash ~/.claude/hooks/record-waiver.sh                    # asvs / 6.2.x
+   ```
+
+   Bootstrap is safe to re-run: every write is guarded by a `[skip] already exists`
+   check, so a committed `CLAUDE.md`, `.claude/settings.json`, skills and CI workflow
+   are left alone. On an already-bootstrapped machine it is a no-op and you can skip
+   straight to checking `waivers.json`.
+
+   **`record-waiver.sh` must be run BY A HUMAN, in a real terminal.** It refuses
+   without a TTY on purpose — "a subagent must not waive on your behalf" — and a
+   Claude Code session's Bash tool has no controlling terminal, so asking the session
+   to run it will fail by design, not by accident. The guard is enforced four ways:
+   the TTY check, `guard-approval-markers.sh` blocking agent writes to `waivers.json`,
+   a settings Write/Edit deny, and `deployment-gate.sh` cross-checking every waiver
+   the security agent CLAIMED against this file.
+
+   The two greenfield waivers, both type `asvs` (reasons verbatim from
+   [`docs/decisions/feature/greenfield/pr-description.md`](decisions/feature/greenfield/pr-description.md)):
+   - `6.3.3` — MFA / combination of single factors: out of scope for the greenfield run
+   - `6.2.x` — password composition/breach/length policy: delegated to Firebase, with
+     the enable-at-deploy follow-up (discharged by the E-phase run per
+     [`docs/roadmap.md`](roadmap.md))
+
+   Each prompt ends with a literal confirmation — type `waive`, not `y`. Without these
+   two entries the security stage re-flags both as new findings.
 6. **Put the venv's `bin` on `PATH`** (or activate it). The Postgres fixture shells out to
    `alembic` by name; without it, every DB-backed integration module errors at setup with
    `FileNotFoundError: 'alembic'`. This cost time on the WSL box on 2026-10-03.
@@ -105,8 +142,20 @@ state.
    ([`docs/mac-session-handoff.md`](mac-session-handoff.md),
    [`plans/00-mac-pipeline-readiness.md`](../plans/00-mac-pipeline-readiness.md) § the
    shebang trap). So:
-   - `git -C ~/repos/claude-agentic-workflow status` — if those edits are still
-     uncommitted, push them as a **topic branch** (e.g. `fix/macos-shebangs`) and merge to
+   **Done 2026-10-19** — pushed as `fix/macos-shebangs` on
+   `bretthinkle123/claude-agentic-workflow`, so a clone refresh can no longer lose it.
+   **Still open: that branch is not merged to `main` yet.** Until it is, a machine that
+   clones the engine fresh gets the broken hooks back.
+
+   The fix went wider than the three. All 28 remaining `#!/bin/bash` shebangs moved to
+   `#!/usr/bin/env bash` (the repo was already 64-to-25 in favour of the portable form,
+   so this aligned stragglers with its own convention), and a new `portability` suite in
+   `tests/run-eval.sh` now fails the harness if any reappear — the three historic hooks
+   are also asserted by name. The other 25 were never broken; they simply used no bash-4
+   builtin yet, which is a latent trap rather than a safe state.
+
+   - `git -C ~/repos/claude-agentic-workflow status` — if edits are ever uncommitted
+     again, push them as a **topic branch** (e.g. `fix/macos-shebangs`) and merge to
      `main`. The fix is strictly more portable, so both machines want it.
    - **No per-machine branches** in that repo: its convention is topic branches
      (`feat/…`, `docs/…`, `audit/…`) merging to `main`, and the installer installs from
