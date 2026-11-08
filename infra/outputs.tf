@@ -8,7 +8,7 @@ output "vpc_id" {
 }
 
 output "app_task_role_arn" {
-  value = aws_iam_role.app_task.arn
+  value = module.app_identity.role_arn
 }
 
 output "database_endpoint" {

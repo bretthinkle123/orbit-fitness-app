@@ -1,0 +1,85 @@
+{
+  "generated_at": "2026-11-08T06:11:58Z",
+  "assurance": "reduced (swift adapters absent)",
+  "stages": {
+    "debugging": {
+      "invocations": 5,
+      "attempts_max": 5,
+      "caps": 0,
+      "models": [
+        "opus"
+      ],
+      "last_status": "pass"
+    },
+    "documentation": {
+      "invocations": 1,
+      "attempts_max": 1,
+      "caps": 0,
+      "models": [
+        "sonnet"
+      ],
+      "last_status": "pass"
+    },
+    "implementation": {
+      "invocations": 12,
+      "attempts_max": 12,
+      "caps": 0,
+      "models": [
+        "sonnet"
+      ],
+      "last_status": "pass"
+    },
+    "plan-audit": {
+      "invocations": 1,
+      "attempts_max": 1,
+      "caps": 0,
+      "models": [
+        "sonnet"
+      ],
+      "last_status": "pass"
+    },
+    "planning": {
+      "invocations": 4,
+      "attempts_max": 4,
+      "caps": 1,
+      "models": [
+        "opus"
+      ],
+      "last_status": "pass"
+    },
+    "security": {
+      "invocations": 5,
+      "attempts_max": 5,
+      "caps": 1,
+      "models": [
+        "opus"
+      ],
+      "last_status": "clean"
+    },
+    "testing": {
+      "invocations": 3,
+      "attempts_max": 3,
+      "caps": 0,
+      "models": [
+        "sonnet"
+      ],
+      "last_status": "pass"
+    }
+  },
+  "totals": {
+    "log_lines": 31,
+    "capped_lines": 2,
+    "loop_cap_events": 0,
+    "suspected_underlog": 0
+  },
+  "models_used": [
+    "opus",
+    "sonnet"
+  ],
+  "first_pass_clean": false,
+  "post_deploy_remediation": {
+    "lines": 0,
+    "caps": 0,
+    "branches": []
+  }
+}

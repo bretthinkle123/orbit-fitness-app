@@ -54,9 +54,10 @@ gate coverage.
 | `infra/` | Terraform AWS infrastructure — see `infra/README.md` |
 | `ios/Orbit/` | Native SwiftUI client — see `ios/Orbit/README.md` |
 | `tests/` | Backend pytest suite (unit/integration/perf) — see `tests/README.md` |
-| `scripts/` | Operational + CI helper scripts — see `scripts/README.md` |
+| `scripts/` | `dev-up.sh` / `dev-down.sh`, the dev seed and CI helper scripts — see `scripts/README.md` |
+| `Dockerfile`, `docker-compose.yml`, `docker/firebase-emulator/` | The API image and the local compose stack — see `docs/local-development.md` |
 | `design/design_handoff_orbit_swiftui/` | Vendored Claude Design export (reference only; never built into the app) |
-| `docs/` | `system_architecture.md`, `roadmap.md`, `finding-ledger.md`, `mac-session-handoff.md` (Mac environment + full-stack restart recipe), `simulator-storage.md` |
+| `docs/` | `local-development.md` (the local stack: ports, footprint, what local cannot prove), `system_architecture.md`, `roadmap.md`, `finding-ledger.md`, `mac-session-handoff.md` (Mac environment + full-stack restart recipe), `simulator-storage.md` |
 | `docs/decisions/feature/<feature>/` | Per-run retained pipeline record (brief, plan + threat model, acceptance criteria, security report, PR description) — start at its `README.md` |
 | `plans/` | Per-run planning briefs, named by phase and run (`A1-…` through `E3-…`), plus the Mac readiness runbook (`00-…`) |
 | `.github/workflows/` | CI merge gate, deploy pipeline, DAST/provenance workflows |
@@ -71,12 +72,24 @@ python -m uvicorn src.orbit.main:app --port 8000
 `GET http://localhost:8000/health` must return `200` with **no external dependencies**
 reachable (no DB/Firebase required) — this is the smoke check's own contract.
 
-Every other endpoint needs Postgres (`DATABASE_URL`), Redis (`REDIS_URL`) and the
-Firebase Auth emulator (`FIREBASE_AUTH_EMULATOR_HOST`, with
-`FIREBASE_PROJECT_ID=demo-orbit-test`). The full-stack recipe, including launching the
-app in the Simulator, is in `docs/mac-session-handoff.md` § "To restart the stack".
-Run A1 (`plans/A1-local-environment.md`) replaces it with a one-command
-`scripts/dev-up.sh`.
+### The whole stack in containers (recommended)
+
+```sh
+cp .env.local.example .env.local     # replace every CHANGE_ME (openssl rand -hex 24)
+scripts/dev-up.sh                    # Postgres, Redis, Firebase Auth emulator, moto, the API
+scripts/dev-down.sh                  # stop; volumes kept (--clean also deletes them)
+```
+
+The API is then on `http://localhost:8080`, and the iOS Debug build points at it. Needs
+Colima, the `docker compose` plugin, Terraform 1.11+ and a venv with `boto3` and
+`requests`; host ports, memory figures, what local cannot prove, and troubleshooting are in
+[`docs/local-development.md`](docs/local-development.md). Every compose command is
+`docker compose --env-file .env.local ...`.
+
+Running the backend on its own: every endpoint except `/health` needs Postgres
+(`DATABASE_URL`), Redis (`REDIS_URL`) and the Firebase Auth emulator
+(`FIREBASE_AUTH_EMULATOR_HOST`, with `FIREBASE_PROJECT_ID=demo-orbit-test`). The native
+(no-container) recipe is in `docs/mac-session-handoff.md` § "To restart the stack".
 
 Backend config/secrets are read through `src/orbit/config/` (env vars locally; AWS
 Secrets Manager/SSM in deploy) — never hardcode a credential.

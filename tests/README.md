@@ -16,6 +16,8 @@ rollback) are only truthfully provable against a real DB, not a mocked boundary.
 | Path | Responsibility |
 |---|---|
 | `conftest.py` | Shared fixtures: testcontainers Postgres, Firebase emulator client, seeded app instance, per-test isolation. |
+| `unit/` (local stack) | `test_local_stack_config.py` (text and regex checks over `docker-compose.yml`, both Dockerfiles, `.dockerignore`, the xcconfigs, `backend.moto.hcl`; no YAML library), `test_dev_scripts.py` (the `.env.local` contract, loopback guards, subcommand allowlist, DSN redaction, the `ensure-state-backend --report` line, seed status-before-JSON and check-before-insert), `test_dev_up_flow.py` (runs the real `dev-up.sh` against stub `docker`/`terraform`/`lsof`/`curl`/python: api image built before `migrate` on every run, `--rebuild` means `--no-cache`, moto reset read from `--report`), `test_no_env_branches.py` (the app has no environment-conditional branches; one pinned allowlisted line)., `test_local_terraform_guards.py` (static checks over `infra/envs/local` HCL and `.trivyignore`: the endpoint regex is extracted from `variables.tf` and fed hostile inputs; the nine endpoints, static credentials and module set are pinned), `test_dependency_cve_floors.py` (locked and installed dependencies stay at or above their CVE-clearing floors; the pyasn1 cooldown cases are strict `xfail`s that expire 2026-11-10). |
+| `integration/test_secrets_facade_moto.py` | The unchanged secrets facade reading from a moto testcontainer whose image is parsed from `docker-compose.yml`, plus two container-free checks that its readiness wait backs off after every miss. |
 | `unit/` | `test_secrets.py`, `test_openapi_contract.py`, `test_crypto.py`, `test_models.py`, `test_auth_guard.py`, `test_schemas_common.py`, `test_repositories_base.py`, `test_logging.py`, `test_errors.py` — pure-logic / facade-boundary tests. |
 | `integration/` | One file per domain (`test_migrations.py`, `test_edge.py`, `test_weight.py`, `test_train.py`, `test_ratelimit.py`, `test_account_deletion.py`, `test_fuel.py`, `test_health.py`, `test_auth.py`, `test_seed_dast_user.py`, `test_body.py`, `test_profile.py`) — each exercises real HTTP routes against the real DB/emulator, including the mandatory adversarial shapes (cross-owner IDOR/BOLA, unauthenticated-access-denied, constraint→4xx, safe-error, two-principals-one-IP, migration round-trip, erasure-cascade + atomic-rollback, token validation, session-lifecycle). |
 | `perf/run_perf.sh`, `perf/k6_orbit.js` | k6 `constant-arrival-rate` performance harness (Docker `grafana/k6`) against an out-of-process uvicorn; excluded from the CI test job via the `perf` pytest marker, run separately. |
@@ -36,6 +38,10 @@ collection for the coverage-gated job.
   (`pytest --cov=src --cov-fail-under=80`) if you want the local run to fail like CI does.
   The greenfield run measured **97.07% lines / 91.51% branches** combined
   (`docs/decisions/feature/greenfield/test-results.json`).
+  The A1 run measured **97.71% lines / 91.51% branches** combined, 315 passed and 2 strict
+  `xfail`s (`docs/decisions/feature/a1-local-environment/test-results.json`).
+- On Colima set `PYTHONPATH=src` and `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock`,
+  and run the suite with the compose stack **down** (memory); see `docs/local-development.md`.
 - Integration tests need the Firebase Auth emulator on `localhost:9099`. If **another
   project's** emulator already holds that port, the fixture attaches to it, every minted
   token carries the wrong issuer, and the suite fails with a wall of `401`s that looks

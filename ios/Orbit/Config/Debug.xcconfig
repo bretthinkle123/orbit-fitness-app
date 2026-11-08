@@ -1,0 +1,12 @@
+// Debug build configuration: points the app at the local compose stack (scripts/dev-up.sh).
+// project.yml attaches this file to the existing Debug configuration; there is no separate
+// "Local" configuration, because a third one would double the Firebase SDK build in DerivedData.
+//
+// xcconfig treats a double slash as the start of a comment, so the scheme separator in a URL is
+// written http:/$()/ . The empty $() keeps the two slashes apart; without it the value would be
+// silently truncated to "http:".
+ORBIT_API_BASE_URL = http:/$()/localhost:8080
+
+// host:port of the Firebase Auth emulator container. Read by OrbitApp.configureFirebaseAuthEmulatorIfConfigured(),
+// which is compiled only into Debug builds.
+ORBIT_FIREBASE_AUTH_EMULATOR_HOST = localhost:9100

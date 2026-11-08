@@ -59,9 +59,10 @@ resource "aws_kms_alias" "secrets" {
 # pipeline can populate them, and later wire rotation, with no refactor.
 resource "aws_secretsmanager_secret" "database_url" {
   #checkov:skip=CKV2_AWS_57:automatic rotation needs a Lambda rotation function with its own VPC networking to reach the DB - out of scope for this data-security baseline (compute topology deferred, plan.md Stack notes); the container is provisioned now so the real deploy pipeline can wire rotation later with no refactor
-  name       = "orbit/database-url"
-  kms_key_id = aws_kms_key.secrets.arn
-  tags       = var.tags
+  name                    = "orbit/database-url"
+  kms_key_id              = aws_kms_key.secrets.arn
+  recovery_window_in_days = var.recovery_window_in_days
+  tags                    = var.tags
 }
 
 # Deliberately a PLACEHOLDER, never the real DSN: composing the real value
@@ -81,9 +82,10 @@ resource "aws_secretsmanager_secret_version" "database_url_placeholder" {
 
 resource "aws_secretsmanager_secret" "firebase_admin_credentials" {
   #checkov:skip=CKV2_AWS_57:same rotation-deferred rationale as database_url above
-  name       = "orbit/firebase-admin-credentials"
-  kms_key_id = aws_kms_key.secrets.arn
-  tags       = var.tags
+  name                    = "orbit/firebase-admin-credentials"
+  kms_key_id              = aws_kms_key.secrets.arn
+  recovery_window_in_days = var.recovery_window_in_days
+  tags                    = var.tags
 }
 
 # Same placeholder rationale as `database_url` above — the real Firebase

@@ -1,0 +1,143 @@
+# Local development stack (A1). Every compose command is run from the repo root as
+#   docker compose --env-file .env.local <subcommand>
+# That is the ONE env-file mechanism: POSTGRES_* below use the required-variable form
+# (${VAR:?...}), so a command that forgets the env file fails loudly instead of interpolating
+# blanks and recreating postgres with an empty password.
+#
+# Host ports are shifted and loopback-only: container ports stay canonical, 9099 is reserved
+# for the test suite's own Firebase emulator and 8000 for the pipeline smoke check.
+#
+# mem_limit values are the measured peak x ~1.5, rounded up to a multiple of 32m (peaks from the
+# cgroup's memory.peak in the T6 measurement; docs/local-development.md has both figures). They
+# exist so one runaway process is OOM-killed alone instead of thrashing the 3 GB Colima VM.
+# Two are deliberately above that rule: postgres (default shared_buffers is 128 MB, so peak
+# under write load exceeds an idle peak) and redis (its own maxmemory is 32mb).
+name: orbit-local
+
+# Shared by api and migrate. DATABASE_URL is deliberately absent: the app then resolves its DSN
+# through the secrets facade from moto, which is the path production runs. The AWS keys are moto
+# dummies, not secrets.
+x-app-environment: &app-environment
+  AWS_ENDPOINT_URL: http://moto:5000
+  AWS_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  FIREBASE_PROJECT_ID: demo-orbit-test
+  FIREBASE_AUTH_EMULATOR_HOST: firebase-emulator:9099
+  REDIS_URL: redis://redis:6379/0
+  ENVIRONMENT: local
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: orbit-api:local
+    ports:
+      - "127.0.0.1:8080:8000"
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      moto:
+        condition: service_healthy
+      firebase-emulator:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 192m
+
+  # One-off schema migration, run by dev-up: `docker compose --env-file .env.local run --rm migrate`.
+  migrate:
+    image: orbit-api:local
+    profiles: [tools]
+    command: ["alembic", "upgrade", "head"]
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      moto:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 192m
+
+  postgres:
+    # Newest 16.x alpine whose multi-arch index digest is at least 14 days old (pushed 2026-09-21).
+    # Same major as modules/data's RDS engine_version; the minor is deliberately not compared.
+    image: postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env.local}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.local}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env.local}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    mem_limit: 192m
+
+  redis:
+    # 7.2.x is the documented substitute for the nonexistent OSS 7.1 that ElastiCache runs
+    # (pushed 2026-09-21). It is a rate-limit store only, so persistence is off.
+    image: redis:7.2.16-alpine@sha256:29e8589c3f9ba699b5f7aa4b3c7733c58852a3626439e619aa0ee78de08c6ca0
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "32mb", "--maxmemory-policy", "volatile-ttl"]
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    mem_limit: 64m
+
+  firebase-emulator:
+    build:
+      context: docker/firebase-emulator
+    image: orbit-firebase-emulator:local
+    init: true
+    stop_grace_period: 30s
+    ports:
+      - "127.0.0.1:9100:9099"
+    volumes:
+      # The volume root, not /data/state: the entrypoint exports into a subdirectory of it.
+      - fbauth:/data
+    mem_limit: 448m
+
+  moto:
+    # Index (multi-arch) digest, so the same pin resolves on arm64 Macs and amd64 CI.
+    image: motoserver/moto:5.1.22@sha256:1e3802c95726373544967b428201c548f0247c15b00db2d96a5ba0a77d8643b8
+    ports:
+      # Host 5001 because macOS AirPlay (Control Center) holds 5000.
+      - "127.0.0.1:5001:5000"
+    environment:
+      # Without this moto serves no AWS-managed policies and the observability
+      # module's X-Ray policy attachment cannot apply.
+      MOTO_IAM_LOAD_MANAGED_POLICIES: "true"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/moto-api/', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    mem_limit: 448m
+
+volumes:
+  pgdata:
+  fbauth:

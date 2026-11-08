@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # mac-preflight.sh — read-only pre-flight for starting a pipeline run on the Mac.
 #
-# Checks the environment described in docs/a1-run-start.md and prints one line per
+# Checks the environment described in docs/mac-session-handoff.md (§ "Pre-flight for a pipeline run") and prints one line per
 # check plus a verdict. It CHANGES NOTHING: no installs, no services started, no
 # .pipeline markers written (creating a run marker is the pipeline's job, never a
 # check's). Every FAIL line says what to run to fix it.

@@ -277,11 +277,46 @@ catalog row's name and macros into the entry at logging time; `food_entries` car
 **snapshot**, so re-pricing or correcting a catalog row never retroactively rewrites what
 a user already logged — and an entry survives its catalog row being removed.
 
+## 4a. Local topology (the A1 compose stack)
+
+How the backend runs on a developer machine. Nothing here is the production design; it is the
+local stand-in, with the unchanged `src/orbit/` code (no environment branches) reaching its
+dependencies purely through environment variables. Host ports are loopback-only and shifted;
+see `docs/local-development.md`.
+
+```mermaid
+flowchart LR
+    Sim["iOS Simulator (Debug build)"] -->|"http://localhost:8080"| Api
+    Sim -->|"localhost:9100 (auth)"| Emu
+    subgraph Compose["docker compose (orbit-local), all host ports on 127.0.0.1"]
+        Api["api (uvicorn) 8080→8000"]
+        Mig["migrate (one-off alembic)"]
+        Emu["firebase-emulator (Node) 9100→9099, volume fbauth"]
+        Pg[("postgres 16.x 5433→5432, volume pgdata")]
+        Rd[("redis 7.2 6380→6379")]
+        Moto["moto 5001→5000 (in memory)"]
+        Api -->|"DSN fetched via secrets facade"| Moto
+        Api --> Pg
+        Api --> Rd
+        Api -->|"FIREBASE_AUTH_EMULATOR_HOST"| Emu
+        Mig --> Pg
+        Mig -->|"DSN"| Moto
+    end
+    Tf["Terraform infra/envs/local (host)"] -->|"S3 state + lockfile, apply"| Moto
+    Seed["dev-up.sh seed-secrets, seed_dev_data.py"] -->|"database-url secret"| Moto
+    Seed -->|"demo data via the API"| Api
+```
+
+Not modelled locally (live-only, owed to E1/E2): IAM enforcement, VPC/NAT, real RDS and
+ElastiCache behaviour, Lambda behaviour, the front door and WAF, alarm and log delivery,
+quotas.
+
 ## 5. Deployment topology
 
 **Where things stand:** the backend runs as a direct process (`uvicorn`) on the
 developer's machine against a local Postgres, a local Redis and the Firebase Auth
-emulator, with the iOS Simulator as the client. Development stays local-first until an
+emulator, with the iOS Simulator as the client; the same app also runs in a container in the
+local compose stack (§4a). Development stays local-first until an
 explicit go-live decision (`docs/roadmap.md`). The Terraform below is **authored but has
 never been applied** to any AWS account (`offline_validate=true`); the diagram shows the
 target it describes.

@@ -79,6 +79,12 @@ targets:
         # this is the only exclusion needed.
         excludes:
           - Info.plist
+    # The xcconfigs supply ORBIT_API_BASE_URL / ORBIT_FIREBASE_AUTH_EMULATOR_HOST, which Info.plist
+    # expands. They attach to the existing Debug and Release configurations; a third "Local"
+    # configuration was rejected (it would double the Firebase SDK's DerivedData build).
+    configFiles:
+      Debug: Config/Debug.xcconfig
+      Release: Config/Release.xcconfig
     dependencies:
       - package: FirebaseiOS
         product: FirebaseAuth

@@ -63,21 +63,52 @@ module "network" {
 # itself is deferred to A2, but the secrets/observability modules both need a
 # principal to attach their least-privilege policies to now, per plan.md's
 # "least-privilege task role scoped to exactly its secrets + RDS connect". A2
-# attaches the function to this same role rather than creating a second one;
-# the `app_task` name is kept so the modules wired to it don't churn.
-resource "aws_iam_role" "app_task" {
-  name = "${local.name_prefix}-task"
+# attaches the function to this same role rather than creating a second one.
+# The role lives in modules/app_identity so infra/envs/local shares it.
+module "app_identity" {
+  source = "./modules/app_identity"
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Service = "lambda.amazonaws.com" }
-      Action    = "sts:AssumeRole"
-    }]
-  })
+  name_prefix = local.name_prefix
+  tags        = local.common_tags
+}
 
-  tags = local.common_tags
+# The role was inlined here before the module extraction; nothing has been applied
+# yet, so this is a no-op today, but it keeps a later apply from destroying and
+# recreating the role (and detaching its policies) if state ever exists.
+moved {
+  from = aws_iam_role.app_task
+  to   = module.app_identity.aws_iam_role.this
+}
+
+module "data_keys" {
+  source = "./modules/data_keys"
+
+  name_prefix    = local.name_prefix
+  tags           = local.common_tags
+  aws_account_id = var.aws_account_id
+}
+
+# The keys were declared inside modules/data before the split. Nothing has been
+# applied, so these are no-ops today; they stop a later apply from destroying and
+# recreating a CMK (which would orphan whatever it encrypted).
+moved {
+  from = module.data.aws_kms_key.rds
+  to   = module.data_keys.aws_kms_key.rds
+}
+
+moved {
+  from = module.data.aws_kms_alias.rds
+  to   = module.data_keys.aws_kms_alias.rds
+}
+
+moved {
+  from = module.data.aws_kms_key.redis
+  to   = module.data_keys.aws_kms_key.redis
+}
+
+moved {
+  from = module.data.aws_kms_alias.redis
+  to   = module.data_keys.aws_kms_alias.redis
 }
 
 module "data" {
@@ -85,7 +116,8 @@ module "data" {
 
   name_prefix             = local.name_prefix
   tags                    = local.common_tags
-  aws_account_id          = var.aws_account_id
+  rds_kms_key_arn         = module.data_keys.rds_kms_key_arn
+  redis_kms_key_arn       = module.data_keys.redis_kms_key_arn
   private_subnet_ids      = module.network.private_subnet_ids
   db_security_group_id    = module.network.db_security_group_id
   redis_security_group_id = module.network.redis_security_group_id
@@ -101,7 +133,7 @@ module "secrets" {
   name_prefix        = local.name_prefix
   tags               = local.common_tags
   aws_account_id     = var.aws_account_id
-  app_task_role_name = aws_iam_role.app_task.name
+  app_task_role_name = module.app_identity.role_name
 }
 
 module "observability" {
@@ -111,6 +143,6 @@ module "observability" {
   tags               = local.common_tags
   aws_region         = var.aws_region
   aws_account_id     = var.aws_account_id
-  app_task_role_name = aws_iam_role.app_task.name
+  app_task_role_name = module.app_identity.role_name
   ops_role_arn       = var.ops_role_arn
 }

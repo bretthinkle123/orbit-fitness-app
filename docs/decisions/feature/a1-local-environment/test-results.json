@@ -1,0 +1,287 @@
+{
+  "status": "pass",
+  "ran_at": "2026-11-08T06:11:45Z",
+  "scope": "diff",
+  "since_commit": "ade7efe093201238f1732cd1a738ae0cdd7110a9",
+  "tested_change_hash": "2730aefbe0b75322e1d9434609abc121044badcecdd01ffae0edca2f3458b456",
+  "test_strategy": "integration-heavy",
+  "total": 335,
+  "passed": 335,
+  "failed": 0,
+  "xfailed": {
+    "count": 2,
+    "note": "strict pyasn1 cooldown xfails, intended, expire 2026-11-10"
+  },
+  "skipped": {
+    "count": 0,
+    "tests": []
+  },
+  "failures": [],
+  "pre_existing_failures": [],
+  "tests_by_type": {
+    "unit": 222,
+    "integration": 113,
+    "e2e": 0
+  },
+  "criteria_covered": {
+    "total": 32,
+    "covered": 31,
+    "by_id": [
+      {
+        "id": "AC1",
+        "covered": true,
+        "test": ".pipeline/a1-evidence/t7-ac1-imageless.txt",
+        "reason": "Image-less machine run (earlier fresh-run evidence was masked by a cached image): dev-up exit 0, dev-up reports 102 s (104 s external), health_status=200, step health ok.",
+        "delegated": null
+      },
+      {
+        "id": "AC2",
+        "covered": true,
+        "test": ".pipeline/a1-evidence/t7-idempotency.txt; tests/unit/test_local_stack_config.py::test_compose_env_file_single_mechanism; .pipeline/a1-evidence/t6-config-without-envfile.txt; .pipeline/a1-evidence/t7-ac1-imageless-warm.txt",
+        "reason": "Counts before/after 2nd run equal (uid, fuel 2, done 2, weight 1); apply 0 changes; postgres container id unchanged; compose config without --env-file fails on required vars. Warm re-run on the current scripts: exit 0, 13 s reported (15 s external), health 200 (earlier 17 s figure superseded).",
+        "delegated": null
+      },
+      {
+        "id": "AC3",
+        "covered": true,
+        "test": ".pipeline/a1-evidence/t7-ac3a.txt; .pipeline/a1-evidence/t7-ac3b.txt; .pipeline/a1-evidence/t7-killmoto.txt",
+        "reason": "(a) kill after infra-up then re-run exit 0 health ok; (b) moto restart and mid-apply moto kill, re-run exit 0 health ok. Pre-review-round transcripts; dev-up.sh changed (api-build step) but its current convergence is exercised by the imageless and warm runs and tests/unit/test_dev_up_flow.py.",
+        "delegated": null
+      },
+      {
+        "id": "AC4",
+        "covered": true,
+        "test": ".pipeline/a1-evidence/t7-ac4.txt; .pipeline/a1-evidence/t7-ac4-up.txt; .pipeline/a1-evidence/t7-volumes-before-clean.txt",
+        "reason": "Same UID before/after down+up, rows retained, apply after destroy ok, --clean removes both volumes, --bogus exit 2.",
+        "delegated": null
+      },
+      {
+        "id": "AC5",
+        "covered": true,
+        "test": ".pipeline/a1-evidence/t1-plan-noop.txt; .pipeline/a1-evidence/t3-remote-apply-2.txt; .pipeline/a1-evidence/t3-remote-destroy-1.txt; .pipeline/a1-evidence/t3-remote-apply-3.txt; .pipeline/a1-evidence/t3-remote-plan-noop.txt",
+        "reason": "Full cycle apply/no-op plan exit 0/destroy/apply/destroy under local and the S3 backend. CI local-stack half not run on GitHub (only local dry-run t8-local-dryrun.txt).",
+        "delegated": null
+      },
+      {
+        "id": "AC6",
+        "covered": true,
+        "test": "tests/unit/test_local_terraform_guards.py::test_secrets_module_recovery_window_contract, ::test_recovery_window_applies_to_both_secrets_and_only_local_overrides_it, ::test_secrets_resource_is_defined_in_exactly_one_module_file; .pipeline/a1-evidence/t1-ac6-range.txt",
+        "reason": "Validation, default 30, both secrets, local passes 0, no fork; out-of-range probe fails. Tests falsifiability-probed.",
+        "delegated": null
+      },
+      {
+        "id": "AC7",
+        "covered": true,
+        "test": ".pipeline/a1-evidence/t11-final-regression.txt (infra-validate exit=0, engine_version diff 0); tests/unit/test_local_terraform_guards.py::test_local_root_composes_exactly_the_four_expected_modules_and_not_data_or_network",
+        "reason": "Four-module composition pinned by test; infra-validate passes; engine_version unchanged.",
+        "delegated": null
+      },
+      {
+        "id": "AC8",
+        "covered": true,
+        "test": "tests/unit/test_local_terraform_guards.py::test_moto_endpoint_regex_*, ::test_every_service_endpoint_is_pinned_to_the_validated_variable, ::test_provider_uses_static_dummy_credentials_not_ambient_ones, ::test_layer_b_account_check_is_not_disabled; .pipeline/a1-evidence/t1-guard-regex.txt; t1-guard-probe1.txt; t3-guard-probes-remote-backend.txt; t2-guard-rerun.txt",
+        "reason": "Per kickoff probe-2 amendment: regex probe fails, probe 1 fails with account-not-allowed (Layer B claimed), probe 2 (fake keys + existing scratch profile) plan succeeds, probe 2-neg (nonexistent profile) fails closed; override file gitignored; app_xray_write created in apply. CI probe steps not run on GitHub.",
+        "delegated": null
+      },
+      {
+        "id": "AC9",
+        "covered": true,
+        "test": ".pipeline/a1-evidence/t3-lock-listing.txt; t3-lock-concurrent-plan.txt; t3-lock-after.txt; t3-ensure-backend.txt; tests/unit/test_local_stack_config.py::test_backend_uses_lockfile; tests/unit/test_dev_scripts.py::test_ensure_state_backend_creates_no_dynamodb",
+        "reason": "Outcome (a): .tflock present during hold then absent; concurrent plan fails with state lock error; ensure-state-backend idempotent bucket only. Re-run in code-review round: test_dev_scripts.py and test_dev_up_flow.py additions pass.",
+        "delegated": null
+      },
+      {
+        "id": "AC10",
+        "covered": true,
+        "test": "tests/integration/test_secrets_facade_moto.py (5 tests)",
+        "reason": "Passed in this session's full run against a testcontainers moto.",
+        "delegated": null
+      },
+      {
+        "id": "AC11",
+        "covered": true,
+        "test": "tests/unit/test_local_stack_config.py::test_api_service_has_no_database_url; .pipeline/a1-evidence/t6-api-env-and-idempotence.txt; t6-migrate.txt; t6-e2e.txt",
+        "reason": "api env has no DATABASE_URL; migrate ok; authed GET /profile 200 via moto DSN.",
+        "delegated": null
+      },
+      {
+        "id": "AC12",
+        "covered": true,
+        "test": "tests/unit/test_no_env_branches.py (3 tests); git diff HEAD --stat -- src migrations empty (run this session)",
+        "reason": "Forbidden-pattern scan with pinned allowlist and synthetic second-occurrence self-test; no src change.",
+        "delegated": null
+      },
+      {
+        "id": "AC13",
+        "covered": true,
+        "test": "tests/unit/test_local_stack_config.py::test_dockerfile_* (7 tests); .pipeline/a1-evidence/t4-standalone.txt; t4-hadolint.txt; t4-image-checks.txt",
+        "reason": "uid 10001, no poetry, /health 200 standalone, hadolint exit 0.",
+        "delegated": null
+      },
+      {
+        "id": "AC14",
+        "covered": true,
+        "test": ".pipeline/a1-evidence/t4-ac14-closed.txt; .pipeline/security-report.md; tests/unit/test_local_terraform_guards.py::test_every_trivyignore_entry_is_dated_and_either_no_fix_or_in_the_owner_cooldown_section",
+        "reason": "Image scan clean with .trivyignore. DISCLOSURE: AC wording says fixable findings are never ignored, but 6 fixable CVEs (4 pyasn1-adjacent, openssl, apt) sit in .trivyignore as TEMPORARY owner-accepted cooldown exceptions (operator-kickoff 'Cooldown decision' 2026-11-08). Covered as amended by that decision; test pins their eligibility dates and removal instruction.",
+        "delegated": null
+      },
+      {
+        "id": "AC15",
+        "covered": true,
+        "test": ".pipeline/a1-evidence/t2-checkov-infra.txt; t2-checkov-infra-envs-local.txt; t3-checkov-envs-local.txt; .pipeline/checkov.json",
+        "reason": "0 failed in each scan (143 passed/0 failed in security's run). CI Checkov step not run on GitHub.",
+        "delegated": null
+      },
+      {
+        "id": "AC16",
+        "covered": true,
+        "test": "tests/unit/test_local_stack_config.py::test_dockerignore_is_allowlist; .pipeline/a1-evidence/t4-image-checks.txt",
+        "reason": "/app contains only allowlisted paths; no .env.local, .pipeline or .git.",
+        "delegated": null
+      },
+      {
+        "id": "AC17",
+        "covered": true,
+        "test": "tests/unit/test_local_stack_config.py::test_ports_loopback_and_mapped; .pipeline/a1-evidence/t6-loopback.txt",
+        "reason": "All listeners loopback; 8000 and 9099 free; psql/redis reachable from host.",
+        "delegated": null
+      },
+      {
+        "id": "AC18",
+        "covered": true,
+        "test": "tests/unit/test_local_stack_config.py::test_images_digest_pinned, ::test_postgres_major_matches_rds_engine_major, ::test_firebase_tools_matches_ci",
+        "reason": "Pins and parity asserted by tests; arm64 verified by Mac dev-up. amd64 build/pull is CI-only and has not run on GitHub.",
+        "delegated": null
+      },
+      {
+        "id": "AC19",
+        "covered": true,
+        "test": ".pipeline/a1-evidence/t5-build.txt; t5-no-jre-start.txt; t5-persistence.txt; tests/unit/test_local_stack_config.py::test_emulator_* (5 tests)",
+        "reason": "Healthy, config endpoint 200, no JRE needed, UID persists across restart, USER node.",
+        "delegated": null
+      },
+      {
+        "id": "AC20",
+        "covered": true,
+        "test": ".pipeline/a1-evidence/t7-ac4.txt; t7-idempotency.txt; tests/unit/test_dev_scripts.py::test_seed_demo_data_* (4 tests)",
+        "reason": "Seeds through API with check-before-insert (reseed adds 0); migrations diff empty; UI-test seed exercised in dev-up transcripts. Re-run in code-review round: test_dev_scripts.py and test_dev_up_flow.py additions pass.",
+        "delegated": null
+      },
+      {
+        "id": "AC21",
+        "covered": true,
+        "test": "tests/unit/test_dev_scripts.py (validation contract rows, guard-before-client); tests/unit/test_local_stack_config.py::test_compose_env_file_single_mechanism; .pipeline/a1-evidence/t7-ac4.txt",
+        "reason": "Boundary and hostile cases for every contract row; dev-up --bogus exit 2. Re-run in code-review round: test_dev_scripts.py and test_dev_up_flow.py additions pass.",
+        "delegated": null
+      },
+      {
+        "id": "AC22",
+        "covered": true,
+        "test": "tests/unit/test_dev_scripts.py::test_redact_dsn_*; .pipeline/a1-evidence/t7-ac22.txt; t6-ac22.txt; t4-ac22-image.txt",
+        "reason": "Password/token occurrences are 0 in tfstate, moto state object, image history/inspect, and dev-up transcripts.",
+        "delegated": null
+      },
+      {
+        "id": "AC23",
+        "covered": true,
+        "test": "tests/unit/test_local_stack_config.py::test_gitignore_covers_local_secrets; tests/unit/test_dev_scripts.py::test_sentinel_refused; .pipeline/a1-evidence/t1-gitignore-check.txt; .pipeline/gitleaks.json",
+        "reason": "check-ignore matches; sentinels refused; gitleaks 0 in-scope hits per security report. CI secrets job not run on GitHub.",
+        "delegated": null
+      },
+      {
+        "id": "AC24",
+        "covered": true,
+        "test": ".github/workflows/pipeline-ci.yml diff (git diff HEAD: additions only, hunk at line 370+); .pipeline/a1-evidence/t8-local-dryrun.txt; t8-liveness-negative.txt; actionlint re-run this session",
+        "reason": "Existing jobs untouched (no removed lines); new job has contents: read, SHA-pinned actions, digest-pinned moto with MOTO_IAM_LOAD_MANAGED_POLICIES; actionlint findings are all pre-existing lines <370. The job itself has NEVER run on GitHub (known, recorded); the green-on-PR half is for the deployment stage.",
+        "delegated": null
+      },
+      {
+        "id": "AC25",
+        "covered": true,
+        "test": "tests/unit/test_local_stack_config.py::test_build_provenance_is_inert_until_deploy_is_enabled; git diff HEAD build-provenance.yml reviewed this session",
+        "reason": "Gate requires Dockerfile and DEPLOY_ENABLED; post-merge main run check owed.",
+        "delegated": null
+      },
+      {
+        "id": "AC26",
+        "covered": true,
+        "test": ".pipeline/a1-evidence/t9-buildsettings-Debug.txt; t9-buildsettings-Release.txt; t9-built-infoplists.txt; t9-release-binary-strings.txt; t11-final-regression.txt (store-compliance critical=0); .pipeline/a1-evidence/ac26-orbittests.txt; ac26-orbittests.xcresult",
+        "reason": "Settings/builds/store-compliance proven (T9/T11); OrbitTests green this cycle: xcodebuild test -only-testing:OrbitTests, TEST SUCCEEDED, xcresult total 208 passed / 0 failed / 0 skipped (XCTest log: 50 executed, 0 failures), signed build, no overrides. Reduced assurance: Swift side not gate-verified.",
+        "delegated": null
+      },
+      {
+        "id": "AC27",
+        "covered": true,
+        "test": ".pipeline/a1-evidence/t10-rerun-api-requests.txt; smoke.xcresult; t10-rerun-summary.json",
+        "reason": "SmokeUITests 1/1 passed on iPhone 17 Pro against containerized API, no overrides; 2xx for bootstrap, fuel entries, train sets, weight, PATCH /profile, DELETE /me. Reduced assurance (Swift not gate-verified).",
+        "delegated": null
+      },
+      {
+        "id": "AC28",
+        "covered": true,
+        "test": "docs/local-development.md and listed docs reviewed this session (grep checklist); docs/a1-run-start.md absent; plans/A2 rows 3, A, B present",
+        "reason": "All checklist items present; every compose command in docs uses --env-file.",
+        "delegated": null
+      },
+      {
+        "id": "AC29",
+        "covered": true,
+        "test": ".pipeline/a1-evidence/t7-ac1-imageless.txt (102 s reported cold, image-less); t7-ac1-imageless-warm.txt (15 s warm); t6-footprint.txt; docs/local-development.md footprint table",
+        "reason": "Cold/warm wall times and per-container memory recorded; no perf.budget emitted. Superseded 48 s/17 s figures replaced by the image-less 104 s / warm 13 s runs (verify docs table matches).",
+        "delegated": null
+      },
+      {
+        "id": "AC30",
+        "covered": true,
+        "test": "full pytest run this session (335 passed, 2 xfailed, 97.71% line); .pipeline/a1-evidence/t11-final-regression.txt; t10-ac30-smoke-stack-up.txt",
+        "reason": "Suite green with stack down; smoke-check PASS with stack down (t11) and up (t10).",
+        "delegated": null
+      },
+      {
+        "id": "AC31",
+        "covered": true,
+        "test": "docs/local-development.md live-only gaps section (grep this session)",
+        "reason": "Gaps listed (IAM, VPC/NAT, Lambda cold start, WAF, SNS alarm, CloudWatch, quotas/eventual consistency). PR-description half belongs to the documentation/deployment stage.",
+        "delegated": null
+      },
+      {
+        "id": "AC32",
+        "covered": false,
+        "test": "",
+        "reason": "Delegated to security (acceptance.md delegated_criteria); security clean this cycle.",
+        "delegated": "security"
+      }
+    ]
+  },
+  "resilience": {
+    "migration_roundtrip": "n/a",
+    "property_tests": 0,
+    "concurrency": "n/a"
+  },
+  "perf": {
+    "budget": {
+      "p95_ms": null,
+      "throughput_rps": null
+    },
+    "measured": {
+      "p95_ms": null,
+      "throughput_rps": null
+    },
+    "scenario": null,
+    "status": "n/a"
+  },
+  "coverage": {
+    "combined": {
+      "lines": 97.71,
+      "branches": 91.51,
+      "functions": null
+    },
+    "unit": null,
+    "integration": null
+  },
+  "notes": [
+    "AC26 (OrbitTests, ac26-orbittests.txt) and AC27 carried forward: no iOS code changed in the code-review round",
+    "No source or test file changed this pass",
+    "Advisory full OrbitUITests suite skipped; local-stack CI job never run on GitHub"
+  ]
+}

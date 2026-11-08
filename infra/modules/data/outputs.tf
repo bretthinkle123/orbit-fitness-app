@@ -10,7 +10,3 @@ output "database_master_user_secret_arn" {
 output "redis_primary_endpoint" {
   value = aws_elasticache_replication_group.redis.primary_endpoint_address
 }
-
-output "db_kms_key_arn" {
-  value = aws_kms_key.rds.arn
-}

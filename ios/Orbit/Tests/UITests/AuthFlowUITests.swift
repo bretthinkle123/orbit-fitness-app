@@ -60,8 +60,19 @@ final class AuthFlowUITests: XCTestCase {
 
     static func launchApp() -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchEnvironment["OrbitAPIBaseURL"] = "http://localhost:8001"
-        app.launchEnvironment["OrbitFirebaseAuthEmulatorHost"] = "localhost:9099"
+        // No override by default: the app then uses the Debug xcconfig, i.e. the compose stack
+        // (API :8080, emulator :9100), so one run proves the committed configuration too.
+        // To target the native stack instead, pass the values through xcodebuild's TEST_RUNNER_
+        // prefix, which is stripped before this process sees them:
+        //   TEST_RUNNER_ORBIT_UITEST_API_BASE_URL=http://localhost:8001 \
+        //   TEST_RUNNER_ORBIT_UITEST_FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 xcodebuild test ...
+        let runnerEnvironment = ProcessInfo.processInfo.environment
+        if let apiBaseURL = runnerEnvironment["ORBIT_UITEST_API_BASE_URL"], !apiBaseURL.isEmpty {
+            app.launchEnvironment["OrbitAPIBaseURL"] = apiBaseURL
+        }
+        if let emulatorHost = runnerEnvironment["ORBIT_UITEST_FIREBASE_AUTH_EMULATOR_HOST"], !emulatorHost.isEmpty {
+            app.launchEnvironment["OrbitFirebaseAuthEmulatorHost"] = emulatorHost
+        }
         // Start every auth test signed OUT. A Firebase session survives app
         // relaunch AND uninstall (it lives in the simulator's device-wide
         // Keychain), so without this the app opens on the signed-in tab shell

@@ -70,15 +70,18 @@
 	<key>UILaunchScreen</key>
 	<dict/>
 
-	<!-- The backend base URL — a build-configuration value, never a
-	     hardcoded literal in Swift source (`App/OrbitApp.swift`'s
-	     `resolveAPIBaseURL()` reads this key). Local dev default per
-	     CLAUDE.md's "How to run" (port 8001 on this repo's own dev host);
-	     override per build configuration once a staging/production HTTPS
-	     endpoint exists (plan.md Open Question 1's infra depth). -->
+	<!-- The backend base URL: a build-configuration value, never a hardcoded literal in
+	     Swift source (`App/OrbitApp.swift`'s `resolveAPIBaseURL()` reads this key). It comes
+	     from the xcconfig attached to each configuration (`Config/Debug.xcconfig` points at the
+	     local compose stack; `Config/Release.xcconfig` keeps the pre-existing placeholder until
+	     a real HTTPS origin exists). -->
 	<key>OrbitAPIBaseURL</key>
-	<string>http://localhost:8001</string>
+	<string>$(ORBIT_API_BASE_URL)</string>
 
+	<!-- host:port of the Firebase Auth emulator. Debug sets it; Release leaves it empty, and the
+	     code that reads it is compiled only into Debug builds. -->
+	<key>OrbitFirebaseAuthEmulatorHost</key>
+	<string>$(ORBIT_FIREBASE_AUTH_EMULATOR_HOST)</string>
 
 	<!-- UIAppFonts wiring per Resources/Fonts/FONTS-TODO.md (that file's
 	     step 2, explicitly assigned to this task): the seven filenames

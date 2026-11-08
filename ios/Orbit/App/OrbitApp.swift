@@ -89,13 +89,14 @@ struct OrbitApp: App {
         #endif
     }
 
-    /// Debug-only, opt-in Firebase Auth emulator wiring — mirrors the
-    /// backend's own `FIREBASE_AUTH_EMULATOR_HOST` detection
-    /// (`src/orbit/auth/firebase.py`), so the Mac-phase operator's local/
-    /// XCUITest runs against the real emulator-backed API (AC27) need only
-    /// set `OrbitFirebaseAuthEmulatorHost` in a local, uncommitted scheme
-    /// environment/xcconfig override — never a value baked into the
-    /// committed `Info.plist`, and compiled out of Release builds entirely.
+    /// Debug-only Firebase Auth emulator wiring — mirrors the backend's own
+    /// `FIREBASE_AUTH_EMULATOR_HOST` detection (`src/orbit/auth/firebase.py`).
+    /// The host comes from `OrbitFirebaseAuthEmulatorHost`: the process
+    /// environment first (an XCUITest launch override), else `Info.plist`,
+    /// which the committed `Config/Debug.xcconfig` fills with the compose
+    /// emulator (`localhost:9100`). `Config/Release.xcconfig` leaves it empty,
+    /// an empty value is skipped, and the whole body is compiled out of
+    /// Release builds, so a shipping build never reaches an emulator.
     private static func configureFirebaseAuthEmulatorIfConfigured() {
         #if DEBUG
         let fromEnvironment = ProcessInfo.processInfo.environment["OrbitFirebaseAuthEmulatorHost"]

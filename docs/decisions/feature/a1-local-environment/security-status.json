@@ -1,0 +1,76 @@
+{
+  "status": "clean",
+  "critical_count": 0,
+  "warning_count": 16,
+  "fixed_count": 0,
+  "total_findings": 16,
+  "ran_at": "2026-11-08T06:10:10Z",
+  "scope": "diff",
+  "since_commit": "ade7efe093201238f1732cd1a738ae0cdd7110a9",
+  "scanned_change_hash": "2730aefbe0b75322e1d9434609abc121044badcecdd01ffae0edca2f3458b456",
+  "cycle": 4,
+  "stride_mechanisms_verified": 17,
+  "stride_mechanisms_missing": 0,
+  "stride_new_threats": 0,
+  "asvs": {
+    "l1_l2_universal": true,
+    "in_scope_l3": [],
+    "triggered_chapters": [
+      "V2",
+      "V12",
+      "V13",
+      "V15",
+      "V16"
+    ],
+    "reqs_verified": 9,
+    "l1_l2_missing": [],
+    "l3_in_scope_missing": [],
+    "doc_advisory": [],
+    "waivers": [
+      "12.2.1",
+      "12.3.1",
+      "13.2.1"
+    ],
+    "reconciled": true
+  },
+  "osv_findings": 4,
+  "osv_max_cvss": 7.5,
+  "osv_waiver": {
+    "id": "pyasn1",
+    "reason": "fix 0.6.5 within 14-day cooldown; eligible 2026-11-10, bump then; local-only image",
+    "approved_by": "Brett"
+  },
+  "osv_waiver_note": "waivers.json osv id is a PACKAGE NAME (pyasn1), not an advisory id; the gate matches the literal string so it validates; it covers all 4 remaining >=7.0 OSV ids (all pyasn1 0.6.4). CI osv job does NOT read waivers.json and will fail until a committed osv-scanner.toml mirrors it.",
+  "semgrep_findings": 2,
+  "checkov_findings": 0,
+  "trivy_findings": 2,
+  "scan_artifacts": {
+    "semgrep": "3e6f33d2d478e9a40e4ca0ce4acd3920858a5c7107f15629e08d7d27030ca509"
+  },
+  "trivy_image_api": {
+    "unwaived_high_critical": 0,
+    "ci_gate_exit": 0,
+    "base": "python:3.12-slim-bookworm@sha256:6a0e06f5ba0b373d051aabd3fffb9b873f27f9a2a3a14bcbe37dee6f0e3bbc70",
+    "artifact": ".pipeline/trivy-image.json"
+  },
+  "gitleaks_in_scope": 0,
+  "sbom_components": 80,
+  "input_surface": {
+    "declared": 4,
+    "implemented": 4,
+    "uncontrolled": [],
+    "reconciled": true
+  },
+  "data_surface": {
+    "classified": 1,
+    "sensitive": 1,
+    "unprotected": [],
+    "reconciled": true
+  },
+  "scan_reconciled": true,
+  "carried_forward": {
+    "osv": "cycle 2; poetry.lock unchanged since",
+    "trivy": "cycle 2; Dockerfiles/compose/.dockerignore/infra .tf unchanged; .trivyignore entry set byte-identical (27 ids, header-only edit)",
+    "checkov": "cycle 2; no infra .tf changed (READMEs and gitignored .terraform/ only)"
+  }
+}

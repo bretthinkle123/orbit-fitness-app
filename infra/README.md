@@ -8,13 +8,13 @@ Provisions the **data-security baseline** for Orbit on AWS: persistence, secrets
 observability, and network isolation. This run deliberately **defers the compute
 topology** (the Lambda function + front door + the `envs/` staging/prod split + WAF;
 Lambda chosen over ECS/App Runner on 2026-09-19) to later runs — see `docs/system_architecture.md` §Deployment topology,
-`plans/A1-local-environment.md` (`envs/local` on LocalStack),
+`plans/A1-local-environment.md` (`envs/local` on moto, now built),
 `plans/A2-production-terraform-authoring.md` (staging/prod, authored, never applied) and
 `plans/E1-production-deploy-path.md` (go-live apply). The backend runs as a direct
 process this run (CLAUDE.md), reading secrets from Secrets Manager/SSM in deploy.
-`main.tf`'s `app_task` role is the future Lambda execution role (it trusts
-`lambda.amazonaws.com`); the name predates the Lambda decision and is kept to avoid
-churn.
+The `app_identity` module holds the future Lambda execution role (it trusts
+`lambda.amazonaws.com`); it used to be inlined in `main.tf` as `aws_iam_role.app_task`, and a
+`moved {}` block keeps that refactor from ever destroying and recreating it.
 
 ## Modules
 
@@ -24,7 +24,10 @@ churn.
 | `main.tf` | AWS provider (exact-pinned `hashicorp/aws`, source hand-verified against the registry), tagging, module composition. |
 | `variables.tf` / `outputs.tf` | Root-level inputs (incl. `offline_validate`, the credential-less-plan flag) and outputs. |
 | `modules/network/` | VPC + private subnets + security groups + VPC flow logs — DB/Redis ingress restricted to the app security group only, never `0.0.0.0/0`. |
-| `modules/data/` | `aws_db_instance.postgres` (RDS PostgreSQL: `storage_encrypted`, KMS CMK, not publicly accessible, multi-AZ, 7-day backups, `rds.force_ssl`) + `aws_elasticache_replication_group.redis` (rate-limit store: at-rest + in-transit encryption). |
+| `envs/local/` | The local root, applied to **moto** (see its README): composes `app_identity`, `secrets`, `observability` and `data_keys` only. |
+| `modules/app_identity/` | The Lambda-trusting execution role, shared by the prod root and `envs/local` so there is one trust policy. |
+| `modules/data_keys/` | The RDS and Redis KMS keys, aliases and key policies, split out of `modules/data` so `envs/local` can create them while RDS and ElastiCache are compose containers. |
+| `modules/data/` | (keys now come from `data_keys` as inputs) `aws_db_instance.postgres` (RDS PostgreSQL: `storage_encrypted`, KMS CMK, not publicly accessible, multi-AZ, 7-day backups, `rds.force_ssl`) + `aws_elasticache_replication_group.redis` (rate-limit store: at-rest + in-transit encryption). |
 | `modules/secrets/` | Secrets Manager (DB URL, Firebase Admin service-account JSON) + SSM Parameter Store (non-secret config); least-privilege read policy for the app task role. |
 | `modules/observability/` | CloudWatch app + audit log groups (retention + a resource policy denying `logs:Delete*`/`PutRetentionPolicy` to all but an ops role); X-Ray write permission. |
 
@@ -49,5 +52,12 @@ there is no compute here to attach it to yet.
   narrows the egress).
 - `terraform apply` against AWS never runs in this pipeline — only in CI (`deploy.yml`),
   after merge, and only once `DEPLOY_ENABLED` is set. Nothing has been applied to AWS
-  yet. Once A1 lands, `envs/local` is applied to LocalStack on the developer's machine;
-  that is local-only and never touches AWS.
+  yet. `envs/local` is applied to moto on the developer's machine (`scripts/dev-up.sh`) and in
+  CI's `local-stack` job; that never touches AWS.
+- **Local versus prod state locking differ on purpose.** `envs/local` locks with an S3 lockfile
+  (`use_lockfile = true`, no DynamoDB) on moto. The prod template here still describes S3 +
+  DynamoDB; aligning it is owed to A2 (`plans/A2-production-terraform-authoring.md`). Details:
+  `docs/local-development.md` § "How Terraform state works here".
+- `modules/secrets` takes `recovery_window_in_days` (default 30, so this root is unchanged);
+  `envs/local` passes 0 because moto emulates the recovery window. `modules/data`'s
+  `engine_version` is still 16.6; the bump is owed to A2.

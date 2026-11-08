@@ -5,7 +5,8 @@
 ## Purpose
 
 Standalone scripts that support the app or the pipeline but aren't part of the served
-API: two test-user seeders (DAST, XCUITest), two mechanical consistency checkers for the
+API: the local-stack lifecycle (`dev-up.sh`, `dev-down.sh`) and its helpers, two test-user
+seeders (DAST, XCUITest), two mechanical consistency checkers for the
 iOS build, a Mac storage-budget check, and the CI re-run scripts under `ci/` that
 `pipeline-ci.yml` invokes on the merge commit.
 
@@ -13,6 +14,10 @@ iOS build, a Mac storage-budget check, and the CI re-run scripts under `ci/` tha
 
 | File | Responsibility |
 |---|---|
+| `dev-up.sh` | Brings up the local compose stack and seeds it (`[--rebuild]`): preflight, infra containers, loopback check, state bucket + Terraform init/apply against moto, `seed-secrets`, `api-build`, `migrate`, `api`, dev seed, health. The api image is rebuilt on every run, from the layer cache, before `migrate`, so code and migration edits always land; `--rebuild` rebuilds the api and emulator images with `--no-cache` (minutes, not seconds). Idempotent and convergent; every compose call goes through one `dc()` function (`docker compose --env-file .env.local`). Logs `[dev-up] step=… status=… elapsed_s=…` and prints no secrets. |
+| `dev-down.sh` | Stops the stack (`[--clean]`). Destroys the Terraform resources when moto is healthy, then `down`; volumes are kept unless `--clean`. Prints the live-gap caveat (moto does not enforce the log delete-deny policy). |
+| `dev/local_aws.py` | Host-side moto helper with an allowlisted subcommand set: `validate-env` (strict `.env.local` contract), `ensure-state-backend` (the Terraform state bucket only; no DynamoDB), `seed-secrets` (writes the database DSN into moto Secrets Manager). Every subcommand first refuses any `AWS_ENDPOINT_URL` that is not loopback. Run from the repo root as `python -m scripts.dev.local_aws …`. |
+| `seed_dev_data.py` | Creates (or signs in) the dev Firebase user and brings the account to a demo state **through the real API** with check-before-insert (bootstrap, food entries, done sets, a weight). Prints the uid, never a token or password. Run as `python -m scripts.seed_dev_data --env-file .env.local`. |
 | `seed_dast_user.py` | Seeds a non-production, low-privilege Firebase test user for the DAST scanner to authenticate as (`dast-conventions` DAST-2/DAST-3); idempotent (reuses the account if it already exists); refuses to run when `ENVIRONMENT` is `production`/`prod`. |
 | `check_ui_test_identifier_consistency.py` | Verifies every string selector the iOS XCUITest suite queries by (`Tests/UITests/*.swift`, `SmokeUITests.swift`, `AccessibilityTests.swift`) actually matches a declared accessibility identifier in `Screens/`/`Components/` — catches a typo'd or stale selector that would otherwise silently never exercise anything. |
 | `check_no_inline_hex.sh` | Enforces AC28's "no hardcoded hues" rule: every hex color literal in the iOS Swift sources must live inside `ios/Orbit/DesignSystem/`. |
