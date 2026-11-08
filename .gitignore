@@ -261,3 +261,12 @@ ios/Orbit/Tests/__Snapshots__/
 # Nothing in the build, the test suites, or CI may read from here — anything
 # another machine or another contributor needs belongs in docs/ instead.
 private-docs/
+
+# Local stack (A1): the env file holds dev-only secrets; Terraform working dirs and
+# state backups live under envs/local; *_override.tf is the account-guard probe's
+# scratch file and must never be committed.
+.env.local
+**/.terraform/
+*.tfstate.*
+.local/
+*_override.tf

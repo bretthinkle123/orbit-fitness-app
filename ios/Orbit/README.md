@@ -81,6 +81,42 @@ judgment-call precedent — see T2's `muscle_level_templates` design-note in
 - `Orbit.xcodeproj` itself is gitignored (generated artifact); `project.yml` is the
   source of truth and the file every task's diff actually touches.
 
+## Build configurations and the local stack
+
+Two committed xcconfigs, attached to the **existing** Debug and Release configurations through
+`project.yml` `configFiles` (a third "Local" configuration was rejected: it would double the
+Firebase SDK's DerivedData build on a disk that runs at 90%+):
+
+| | `ORBIT_API_BASE_URL` | `ORBIT_FIREBASE_AUTH_EMULATOR_HOST` |
+|---|---|---|
+| `Config/Debug.xcconfig` | `http://localhost:8080` (the compose API) | `localhost:9100` (the compose emulator) |
+| `Config/Release.xcconfig` | `http://localhost:8001`, the **pre-existing placeholder** (E1/E3 replace it with a real HTTPS origin; not claimed as protected) | empty (the wiring is also `#if DEBUG`) |
+
+`Resources/Info.plist` expands them into `OrbitAPIBaseURL` and `OrbitFirebaseAuthEmulatorHost`.
+A `//` starts an xcconfig comment, so URLs are written `http:/$()/localhost:8080`. No App
+Transport Security exception is added. Note `xcodebuild -showBuildSettings` omits Release's empty
+emulator host (Xcode drops empty assignments); the built Info.plist holds the empty string.
+
+**Debug only works against the compose stack.** Debug targets API `http://localhost:8080` and the
+Auth emulator `localhost:9100`, so it cannot sign in unless `scripts/dev-up.sh` is running on the
+same Mac. On a **physical device** `localhost` is the phone itself, and the stack's ports are
+bound to the Mac's `127.0.0.1` only, so a Debug build on a device cannot sign in (by design). To
+point a Debug launch elsewhere, set both process-environment keys `OrbitAPIBaseURL` and
+`OrbitFirebaseAuthEmulatorHost`, which win over the xcconfig. Set them in Xcode under Edit Scheme >
+Run > Arguments > Environment Variables, with `SIMCTL_CHILD_` for `xcrun simctl launch`, or with
+the `TEST_RUNNER_ORBIT_UITEST_*` variables for UI tests. Details are in
+`docs/local-development.md` § "The iOS Simulator against the stack".
+
+`Tests/UITests/AuthFlowUITests.swift` `launchApp()` no longer hardcodes a backend: with no
+overrides a UI run uses the Debug xcconfig, i.e. the compose stack, so one run proves the
+committed configuration too. To target the native stack instead, pass
+`TEST_RUNNER_ORBIT_UITEST_API_BASE_URL` and `TEST_RUNNER_ORBIT_UITEST_FIREBASE_AUTH_EMULATOR_HOST`
+(recipe: `docs/mac-session-handoff.md`). **Do not pass `CODE_SIGNING_ALLOWED=NO` to
+`xcodebuild test`**: an unsigned app has no keychain entitlement and Firebase Auth registration
+fails. The done-flow (`SmokeUITests`) passed against the compose stack; this is verification by
+a Simulator run plus API logs, never "gate-verified". Close heavy apps first
+(`docs/local-development.md` § "The iOS Simulator against the stack").
+
 ## Fonts
 
 Space Grotesk (display/numbers) + DM Sans (body/UI), OFL-licensed Google Fonts, are not

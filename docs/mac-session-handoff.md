@@ -3,8 +3,10 @@
 Notes from the first Mac sessions after the greenfield merge
 (`plans/00-mac-pipeline-readiness.md` Phase 5), started 2026-08-14. The work they
 describe was merged in **PR #3 (2026-08-26)**. The file is kept as the Mac environment
-reference and restart recipe. A1 (`plans/A1-local-environment.md`) will replace the
-manual recipe below with `scripts/dev-up.sh`.
+reference and restart recipe. A1 (`plans/A1-local-environment.md`) built the containerised
+stack: `scripts/dev-up.sh` / `scripts/dev-down.sh` (`docs/local-development.md`). The manual
+**native** recipe below still works and is what the pytest suite's own emulator fixture
+resembles.
 
 ## Where things stand (as of PR #3, 2026-08-26)
 
@@ -53,7 +55,88 @@ again (gitignored) and has been recreated there.
 - **`gh auth login`**: the first session was blocked on it. Check `gh auth status` before
   a pipeline run; the deployment stage needs it.
 
-## To restart the stack
+## Pre-flight for a pipeline run on the Mac
+
+Run `bash scripts/mac-preflight.sh` first (read-only: PASS/WARN/FAIL per check with the fix
+command; activate the venv before running it or it reports a missing `alembic` that is in fact
+installed). The steps behind it, and why each matters:
+
+1. `git checkout main && git pull`.
+2. **Re-sync the Python deps** (`poetry install`, or `pip install -e .` in the venv). A venv older
+   than the lockfile is how the Tier-2 rate-limit test's `check_revoked` race comes back. For the
+   local stack, the venv needs at least `boto3` and `requests` (`scripts/dev-up.sh` uses them).
+3. `gh auth status`: the deployment stage needs it; tokens expire.
+4. Start the services: Colima for Docker (`colima start`); for the native stack also
+   `brew services start postgresql@16 redis`. For the containerised stack just `scripts/dev-up.sh`
+   (it does not use brew's Postgres/Redis; those hold 5432/6379 and compose uses 5433/6380).
+   You also need the compose plugin (`brew install docker-compose`) and Terraform 1.11+.
+5. **Bootstrap `.pipeline/` FIRST, then record the waivers, in that order.** `.pipeline/` is
+   gitignored and machine-local, and `record-waiver.sh` refuses without `.pipeline/state.json`.
+   Pass the smoke flags: a bare bootstrap does not write `.pipeline/smoke.env`, and the hook's
+   defaults (`src.main:app`) are wrong for this repo (`src.orbit.main:app`).
+
+   ```sh
+   bash ~/.claude/pipeline-templates/bootstrap-project.sh \
+     --start ".venv/bin/python -m uvicorn src.orbit.main:app --host 0.0.0.0 --port 8000" \
+     --health "http://localhost:8000/health" \
+     --test ".venv/bin/python -m pytest --cov=src --cov-fail-under=80"
+   bash ~/.claude/hooks/record-waiver.sh      # asvs / 6.3.3   (human, real terminal)
+   bash ~/.claude/hooks/record-waiver.sh      # asvs / 6.2.x
+   echo 'export SMOKE_STARTUP_WAIT=12' >> .pipeline/smoke.env
+   ```
+
+   SMOKE_STARTUP_WAIT is a fixed sleep then a single curl, not a retry budget; 12 s is headroom
+   for a Mac at ~95% disk. `record-waiver.sh` must be run **by a human in a real terminal**: it
+   refuses without a TTY by design. Confirm with `bash ~/.claude/hooks/smoke-check.sh`
+   (`PASS — http://localhost:8000/health responded 200`). If bootstrap adds only a redundant
+   `Bash(.venv/bin/python -m:*)` rule to the tracked `.claude/settings.json`, revert it.
+6. **Put the venv's `bin` on `PATH`** (or activate it): the Postgres fixture shells out to `alembic`
+   by name.
+7. **Engine shebangs.** Three engine hooks use bash-4 `mapfile` under `#!/bin/bash`, which macOS's
+   bash 3.2 cannot run. The fix (`#!/usr/bin/env bash`) lives on branch `fix/macos-shebangs` of
+   `bretthinkle123/claude-agentic-workflow`; it was **not yet merged to `main`** when this was
+   folded in, so a fresh engine clone brings the broken hooks back until it is. Never refresh the
+   clone before that branch is merged. Use topic branches, not per-machine branches.
+8. **Confirm `.pipeline/` has no in-flight run marker** (move leftovers aside, do not delete).
+
+On Colima, pytest needs `PYTHONPATH=src` and `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock`
+(see `docs/local-development.md`). `colima ssh -- sudo fstrim -a` returns freed disk to the host.
+
+## Simulator work against the stack: recipe and guidance
+
+Against the compose stack (the default; no overrides, so the Debug xcconfig is what is tested):
+
+```sh
+scripts/dev-up.sh
+xcrun simctl bootstatus "iPhone 17 Pro" -b      # boot, then let it idle ~30 s
+cd ios/Orbit && xcodegen generate
+xcodebuild test -project Orbit.xcodeproj -scheme Orbit \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:OrbitUITests/SmokeUITests -resultBundlePath ../../.pipeline/a1-evidence/smoke.xcresult
+```
+
+**Do not pass `CODE_SIGNING_ALLOWED=NO`** to `xcodebuild test`: an unsigned app has no keychain
+entitlement and Firebase Auth registration fails with "An error occurred when accessing the keychain".
+
+Against the **native** stack (API on 8001, emulator on 9099, the recipe below) pass the overrides
+through xcodebuild's `TEST_RUNNER_` prefix, which is stripped before the test process sees it:
+
+```sh
+TEST_RUNNER_ORBIT_UITEST_API_BASE_URL=http://localhost:8001 \
+TEST_RUNNER_ORBIT_UITEST_FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 \
+  xcodebuild test -scheme Orbit -destination 'platform=iOS Simulator,name=iPhone 17 Pro' ...
+```
+
+**Guidance (learned in the A1 acceptance run).** Close heavy apps (browsers, chat, music,
+Creative Cloud, editors) before Simulator work against the stack. With the Mac swapping 10 to
+11 GB the done-flow failed seven times, each time on iOS's "Use Strong Password?" / "Save
+Password?" system sheets arriving later than the UI-test helpers wait; after the heavy apps were
+quit it passed first time. If a single UI test fails on a wait expiry, re-run that test alone
+before treating it as a regression, and measure (vm_stat, `sysctl vm.swapusage`, `uptime`,
+`docker stats --no-stream`) before tuning anything. Never raise Colima's memory. Keep the pytest
+suite idle while the stack and Simulator are up, and `xcrun simctl shutdown all` afterwards.
+
+## To restart the stack (native, no containers)
 
 ```sh
 brew services start postgresql@16 redis
@@ -154,9 +237,11 @@ budget and per-run log), and a Phase-5 storage gate in the runbook.
 - **`pip install -e .` works** (PR #5): the build backend pin moved to
   `poetry-core>=2.0.0,<3.0.0`, which reads the PEP-621 `[project]` table. The
   `PYTHONPATH=src` workaround is no longer needed for an editable install.
-- **The emulator fixture no longer hangs on a failed start** (PR #5): its output goes to
-  a temp file instead of a pipe, and it is stopped as a whole process group, so a
-  surviving emulator child can neither block the read nor keep port 9099 bound.
+- **FIXED: the emulator fixture's pipe deadlock** (PR #5). It used to hang on a failed
+  start because `subprocess.stdout.read()` could block forever on a pipe; its output now goes
+  to a temp file instead of a pipe, and it is stopped as a whole process group, so a
+  surviving emulator child can neither block the read nor keep port 9099 bound. (Historical
+  note: a full disk once looked like this hang; see `docs/simulator-storage.md`.)
 
 **Still open:**
 - **`GoogleService-Info.plist` holds emulator-only placeholders** (project

@@ -1,0 +1,12 @@
+// Release build configuration.
+//
+// ORBIT_API_BASE_URL is the PRE-EXISTING placeholder, moved here unchanged: Release has no live
+// endpoint until E1/E3 replace it with a real HTTPS origin. It is flagged, not fixed, and it is
+// not claimed to be protected against anything. See the Info.plist header on ATS.
+//
+// A double slash starts an xcconfig comment, so the scheme separator is written http:/$()/ .
+ORBIT_API_BASE_URL = http:/$()/localhost:8001
+
+// Deliberately empty: a shipping build never talks to an auth emulator (the wiring is also compiled
+// out of Release entirely).
+ORBIT_FIREBASE_AUTH_EMULATOR_HOST =

@@ -17,9 +17,8 @@ _Deferral rule used for the greenfield scope: a feature whose **flow the design 
 was built; a feature that existed in the design only as a button/label/number with no
 flow behind it shipped as a stub/default and lives here._
 
-_Not a run: [docs/a1-run-start.md](a1-run-start.md) is the launch checklist for the
-**A1** run specifically — which machine it belongs on, the environment pre-flight, and the
-decisions it will ask about. Retired at A1 closeout._
+_The durable parts of the retired A1 launch checklist (the Mac pre-flight) now live in
+[docs/mac-session-handoff.md](mac-session-handoff.md)._
 
 _Not a run: [plans/00-mac-pipeline-readiness.md](../plans/00-mac-pipeline-readiness.md)
 is a self-contained runbook a fresh Claude session on the operator's Mac executes to
@@ -103,9 +102,11 @@ infrastructure. Until the owner explicitly decides to go live:
 **Phase A — Local foundation**
 
 - **A1 — Local environment.** Dockerfile, docker-compose (Postgres, Redis, Firebase
-  emulator, LocalStack), Terraform `envs/local` applied to LocalStack, Simulator
-  build config, `dev-up`/`dev-down`, and a learning doc on what local can't prove.
-  → [plans/A1-local-environment.md](../plans/A1-local-environment.md)
+  emulator, moto), Terraform `envs/local` applied to moto (S3 state with native locking),
+  Simulator build config, `dev-up`/`dev-down`, and a learning doc on what local can't prove.
+  **Built** (the emulator is moto, not LocalStack; the Simulator done-flow passed against the
+  containers). → [plans/A1-local-environment.md](../plans/A1-local-environment.md),
+  [docs/local-development.md](local-development.md)
 - **A2 — Production Terraform, authored.** The staging/prod envs split, network
   completion (public subnets/NAT), compute (**AWS Lambda**, owner decision 2026-09-19),
   WAF, alarms, deploy/OIDC bootstrap stack and

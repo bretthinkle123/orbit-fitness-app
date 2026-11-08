@@ -6,8 +6,13 @@ variable "tags" {
   type = map(string)
 }
 
-variable "aws_account_id" {
-  description = "Used only to build explicit KMS key policies (Checkov CKV2_AWS_64) via string interpolation — never a live `aws_caller_identity` lookup (see root variables.tf)."
+variable "rds_kms_key_arn" {
+  description = "CMK for RDS storage encryption and Performance Insights (from modules/data_keys)."
+  type        = string
+}
+
+variable "redis_kms_key_arn" {
+  description = "CMK for ElastiCache at-rest encryption (from modules/data_keys)."
   type        = string
 }
 

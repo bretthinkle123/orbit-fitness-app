@@ -50,9 +50,17 @@ committed file, a PR description, or anything else that leaves this machine.
 ## How to run / build / test
 - Start (backend): `python -m uvicorn src.orbit.main:app --port 8000`
   (smoke check expects HTTP 200 at `http://localhost:8000/health`)
+- Full local stack (API + Postgres + Redis + Firebase emulator + moto, containers):
+  `scripts/dev-up.sh` to start, `scripts/dev-down.sh` to stop (volumes kept; `--clean` also
+  wipes them, and is the first thing to try when alembic misbehaves). API on
+  `http://localhost:8080`; host ports and prerequisites: `docs/local-development.md`.
+  Every compose command is `docker compose --env-file .env.local ...`, run from the repo root
+  (a bare `docker compose` fails by design). Activate the venv first: `source .venv/bin/activate`.
 - Test (backend): `pytest --cov=src --cov-fail-under=80` (threshold >= 80%; there are no
   `addopts` in `pyproject.toml`, so the flag is required to actually enforce it locally —
-  CI passes it explicitly). Integration tests need the Firebase Auth emulator on port
+  CI passes it explicitly). On Colima, set `PYTHONPATH=src` and
+  `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock`, and run the suite with the
+  compose stack **down** (memory). Integration tests need the Firebase Auth emulator on port
   9099 free; another project's emulator squatting there fails the suite with 401s.
 - Migrate: `alembic upgrade head`
 - iOS: Swift toolchain + XCTest (reduced assurance; see Stack notes).

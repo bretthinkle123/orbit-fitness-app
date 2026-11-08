@@ -21,3 +21,102 @@
 # the identical rationale, so both IaC scanners record the same accepted risk.
 # Re-evaluate when compute lands; this entry should be REMOVED then.
 AWS-0104
+
+# --- A1 API image (Dockerfile; python:3.12-slim-bookworm base) -------------------------------
+# Trivy image findings whose Debian status has NO FIXED VERSION available (affected,
+# fix_deferred or will_not_fix), triaged against orbit-api:local. Each is inherited from
+# the Debian base image; the app source has no subprocess/os.system call, and the
+# container runs non-root. 20 CVE ids are in this no-fix category: 15 triaged 2026-10-20
+# (re-verified that day against python:3.12.15) plus 5 owner-accepted 2026-11-08 (listed below).
+# CVE-2026-84782 (libssl3/openssl, used by Python's ssl module) was originally in this category
+# but now HAS a fix in the next base digest; it sits in the "FIX EXISTS — blocked by 14-day
+# cooldown" section at the end of this file, not here.
+# Fixable findings are NOT listed in this section: they are fixed by bumping the base digest.
+# Revisit-by 2026-11-20 (15 original) / 2026-12-08 (5 newer), or on the next base-digest bump:
+# delete any line whose CVE now has a fix.
+
+# CVE-2023-45853 (CRITICAL, will_not_fix): no fixed version available; packages: zlib1g. Revisit-by 2026-11-20.
+CVE-2023-45853
+
+# CVE-2025-69720 (HIGH, affected): no fixed version available; packages: libncursesw6, libtinfo6, ncurses-base, ncurses-bin. Revisit-by 2026-11-20.
+CVE-2025-69720
+
+# CVE-2025-7458 (CRITICAL, affected): no fixed version available; packages: libsqlite3-0. Revisit-by 2026-11-20.
+CVE-2025-7458
+
+# CVE-2026-11822 (HIGH, fix_deferred): no fixed version available; packages: libsqlite3-0. Revisit-by 2026-11-20.
+CVE-2026-11822
+
+# CVE-2026-11824 (HIGH, fix_deferred): no fixed version available; packages: libsqlite3-0. Revisit-by 2026-11-20.
+CVE-2026-11824
+
+# CVE-2026-16742 (HIGH, fix_deferred): no fixed version available; packages: libsystemd0, libudev1. Revisit-by 2026-11-20.
+CVE-2026-16742
+
+# CVE-2026-41992 (HIGH, fix_deferred): no fixed version available; packages: gzip. Revisit-by 2026-11-20.
+CVE-2026-41992
+
+# CVE-2026-53613 (HIGH, affected): no fixed version available; packages: bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1, mount, util-linux, util-linux-extra. Revisit-by 2026-11-20.
+CVE-2026-53613
+
+# CVE-2026-53615 (HIGH, affected): no fixed version available; packages: bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1, mount, util-linux, util-linux-extra. Revisit-by 2026-11-20.
+CVE-2026-53615
+
+# CVE-2026-54369 (HIGH, fix_deferred): no fixed version available; packages: libacl1. Revisit-by 2026-11-20.
+CVE-2026-54369
+
+# CVE-2026-76642 (HIGH, affected): no fixed version available; packages: bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1, mount, util-linux, util-linux-extra. Revisit-by 2026-11-20.
+CVE-2026-76642
+
+# CVE-2026-78408 (HIGH, affected): no fixed version available; packages: bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1, mount, util-linux, util-linux-extra. Revisit-by 2026-11-20.
+CVE-2026-78408
+
+# CVE-2026-78409 (HIGH, affected): no fixed version available; packages: bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1, mount, util-linux, util-linux-extra. Revisit-by 2026-11-20.
+CVE-2026-78409
+
+# CVE-2026-78410 (HIGH, affected): no fixed version available; packages: bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1, mount, util-linux, util-linux-extra. Revisit-by 2026-11-20.
+CVE-2026-78410
+
+# CVE-2026-9538 (HIGH, fix_deferred): no fixed version available; packages: perl-base. Revisit-by 2026-11-20.
+CVE-2026-9538
+
+# Triaged 2026-11-08 against orbit-api:local rebuilt on python:3.12.15-slim-bookworm@sha256:6a0e06f5… (debian 12.15).
+
+# CVE-2026-119373 (HIGH, affected): no fixed version available; packages: libsqlite3-0. Triaged 2026-11-08; revisit-by 2026-12-08. Owner-accepted 2026-11-08.
+CVE-2026-119373
+
+# CVE-2026-119374 (HIGH, affected): no fixed version available; packages: libsqlite3-0. Triaged 2026-11-08; revisit-by 2026-12-08. Owner-accepted 2026-11-08.
+CVE-2026-119374
+
+# CVE-2026-119379 (HIGH, affected): no fixed version available; packages: libsqlite3-0. Triaged 2026-11-08; revisit-by 2026-12-08. Owner-accepted 2026-11-08.
+CVE-2026-119379
+
+# CVE-2026-76844 (HIGH, affected): no fixed version available; packages: zlib1g. Triaged 2026-11-08; revisit-by 2026-12-08. Owner-accepted 2026-11-08.
+CVE-2026-76844
+
+# CVE-2026-85091 (HIGH, affected): no fixed version available; packages: zlib1g. Triaged 2026-11-08; revisit-by 2026-12-08. Owner-accepted 2026-11-08.
+CVE-2026-85091
+
+# --- FIX EXISTS — blocked by 14-day cooldown (owner-accepted 2026-11-08, temporary) ---------------
+# NOT no-fix waivers: each of these HAS a fix that is still inside the 14-day dependency cooldown.
+# They are temporary. Bump on or after the stated date, then delete the line (and, for pyasn1, the
+# xfail in tests/unit/test_dependency_cve_floors.py). Owed to A2: plans/A2-production-terraform-authoring.md
+# § Inherited from A1, row C.
+
+# CVE-2026-119194 (HIGH, fixed): pyasn1 0.6.4; fixed in 0.6.5, eligible 2026-11-10T06:33Z; bump on/after that date and delete this line.
+CVE-2026-119194
+
+# CVE-2026-119195 (HIGH, fixed): pyasn1 0.6.4; fixed in 0.6.5, eligible 2026-11-10T06:33Z; bump on/after that date and delete this line.
+CVE-2026-119195
+
+# CVE-2026-119196 (HIGH, fixed): pyasn1 0.6.4; fixed in 0.6.5, eligible 2026-11-10T06:33Z; bump on/after that date and delete this line.
+CVE-2026-119196
+
+# CVE-2026-119197 (HIGH, fixed): pyasn1 0.6.4; fixed in 0.6.5, eligible 2026-11-10T06:33Z; bump on/after that date and delete this line.
+CVE-2026-119197
+
+# CVE-2026-84782 (HIGH, fixed; reachable via Python ssl): openssl, libssl3 3.0.22-1~deb12u1; fixed in base python:3.12.16-slim-bookworm sha256:935c3c5b…, eligible 2026-11-19T17:07Z; bump the digest on/after that date and delete this line.
+CVE-2026-84782
+
+# CVE-2026-109518 (HIGH, fixed): apt, libapt-pkg6.0 2.6.1; fixed in base python:3.12.16-slim-bookworm sha256:935c3c5b…, eligible 2026-11-19T17:07Z; bump the digest on/after that date and delete this line.
+CVE-2026-109518

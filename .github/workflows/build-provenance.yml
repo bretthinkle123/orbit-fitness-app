@@ -51,8 +51,13 @@ jobs:
       - name: Skip when not containerized
         id: gate
         run: |
-          if [ -f Dockerfile ]; then echo "run=true" >> "$GITHUB_OUTPUT";
-          else echo "run=false" >> "$GITHUB_OUTPUT"; echo "no Dockerfile — build-provenance skipped"; fi
+          # A Dockerfile alone is not enough: until the owner sets DEPLOY_ENABLED (the same
+          # switch deploy.yml uses) the AWS role and ECR placeholders below are unusable, and
+          # every merge to main would fail here.
+          if [ -f Dockerfile ] && [ "$DEPLOY_ENABLED" = "true" ]; then echo "run=true" >> "$GITHUB_OUTPUT";
+          else echo "run=false" >> "$GITHUB_OUTPUT"; echo "inert until E1 (DEPLOY_ENABLED unset or no Dockerfile) — build-provenance skipped"; fi
+        env:
+          DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
 
       # --- container hardening (audit S4): lint the Dockerfile BEFORE building ---
       - name: hadolint (Dockerfile lint — errors fail)

@@ -367,6 +367,166 @@ jobs:
           echo "store-compliance critical=$crit"
           [ "$crit" -eq 0 ] || exit 1   # mirror the local deploy-gate floor
 
+  # local-stack — A1: re-verifies the local environment in CI. It runs Terraform against a moto
+  # SERVICE CONTAINER (no docker compose, so the compose --env-file rule does not apply here),
+  # the account-guard probes, hadolint on both Dockerfiles, Trivy on the API image (gating) and
+  # the emulator image (advisory, OQ10), and Checkov on infra/envs/local. The existing jobs above
+  # are untouched; the 106 integration tests stay hermetic on testcontainers.
+  #
+  # Like containers-iac, each scanner is an independent step (continue-on-error + if: always())
+  # that must leave a parseable artifact, and a final liveness step fails the job on any missing
+  # artifact or failed scanner, so "scanner never ran" and "scanner found nothing" stay distinct.
+  #
+  # Pins: actions by commit SHA; scanner images by digest, each tag's push date at least 14 days
+  # before this was written (checkov 3.3.24 2026-10-06, trivy 0.75.0 2026-10-01, hadolint v2.15.1
+  # 2026-07-31); Terraform 1.15.9 (the spike's version; the S3 lockfile needs >= 1.11).
+  # After its first green run, add `local-stack` to branch protection's required contexts.
+  local-stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    env:
+      TF_IN_AUTOMATION: "1"
+      TF_DIR: infra/envs/local
+      MOTO_ENDPOINT: http://localhost:5001
+      HADOLINT_IMAGE: hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d
+      TRIVY_IMAGE: aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
+      CHECKOV_IMAGE: bridgecrew/checkov:3.3.24@sha256:395ab21f8dc5d457f05001598638a98d142a98e264d610650c084d0ef2e1b4a5
+    services:
+      moto:
+        # The same multi-arch index digest as docker-compose.yml.
+        image: motoserver/moto:5.1.22@sha256:1e3802c95726373544967b428201c548f0247c15b00db2d96a5ba0a77d8643b8
+        env:
+          # Without it moto serves no AWS-managed policies and the X-Ray attachment cannot apply.
+          MOTO_IAM_LOAD_MANAGED_POLICIES: "true"
+        ports:
+          - 5001:5000
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.15.9
+          terraform_wrapper: false   # raw exit codes: the probes below depend on them
+      - name: terraform fmt
+        run: terraform fmt -check -recursive infra/envs/local infra/modules
+      - name: Wait for moto
+        run: |
+          for _ in $(seq 1 30); do
+            curl -sf "$MOTO_ENDPOINT/moto-api/" >/dev/null && exit 0
+            sleep 2
+          done
+          echo "::error::moto did not become ready"; exit 1
+      - name: State bucket (ensure-state-backend, bucket only)
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet boto3==1.43.40
+          AWS_ENDPOINT_URL="$MOTO_ENDPOINT" "$RUNNER_TEMP/venv/bin/python" -m scripts.dev.local_aws ensure-state-backend
+      - name: terraform init / validate / plan
+        run: |
+          terraform -chdir="$TF_DIR" init -input=false -backend-config=backend.moto.hcl
+          terraform -chdir="$TF_DIR" validate
+          terraform -chdir="$TF_DIR" plan -input=false
+      - name: Guard probe 0 - endpoint regex refuses a non-local URL
+        run: |
+          if terraform -chdir="$TF_DIR" plan -input=false -var moto_endpoint=https://example.com >probe-regex.txt 2>&1; then
+            echo "::error::plan accepted a non-local moto_endpoint"; exit 1
+          fi
+          grep -q "must match" probe-regex.txt
+      - name: Guard probe 1 - allowed_account_ids mismatch must fail (Layer B)
+        run: |
+          trap 'rm -f "$TF_DIR/zz_probe_override.tf"' EXIT
+          printf 'provider "aws" { allowed_account_ids = ["000000000000"] }\n' > "$TF_DIR/zz_probe_override.tf"
+          if terraform -chdir="$TF_DIR" plan -input=false >probe1.txt 2>&1; then
+            echo "::error::plan succeeded with a mismatched allowed_account_ids"; exit 1
+          fi
+          grep -qi "not allowed" probe1.txt
+      - name: Guard probes 2 and 2-neg - ambient credentials and profiles (Layer A)
+        run: |
+          scratch="$(mktemp -d)"
+          trap 'rm -rf "$scratch"' EXIT
+          printf '[probe-scratch]\naws_access_key_id = AKIASCRATCHPROFILE000\naws_secret_access_key = scratch/profile/not/real\n' > "$scratch/credentials"
+          printf '[profile probe-scratch]\nregion = eu-west-1\n' > "$scratch/config"
+
+          # Probe 2: fake ambient keys plus an EXISTING scratch profile with different keys and region.
+          # The plan must still target moto, so it must succeed (detailed exit code 0 or 2).
+          status=0
+          AWS_ACCESS_KEY_ID=AKIAEXAMPLEPROBE0000 AWS_SECRET_ACCESS_KEY=probe/not/real \
+            AWS_PROFILE=probe-scratch AWS_SHARED_CREDENTIALS_FILE="$scratch/credentials" AWS_CONFIG_FILE="$scratch/config" \
+            terraform -chdir="$TF_DIR" plan -input=false -detailed-exitcode >probe2.txt 2>&1 || status=$?
+          case "$status" in
+            0|2) echo "probe 2: plan succeeded against moto (exit $status)" ;;
+            *) cat probe2.txt; echo "::error::probe 2 failed: ambient credentials or profile leaked into the plan"; exit 1 ;;
+          esac
+
+          # Probe 2-neg: a profile that does not exist must fail closed, before any network call.
+          if AWS_ACCESS_KEY_ID=AKIAEXAMPLEPROBE0000 AWS_SECRET_ACCESS_KEY=probe/not/real \
+               AWS_PROFILE=nonexistent-probe AWS_SHARED_CREDENTIALS_FILE="$scratch/credentials" AWS_CONFIG_FILE="$scratch/config" \
+               terraform -chdir="$TF_DIR" plan -input=false >probe2neg.txt 2>&1; then
+            echo "::error::probe 2-neg: a nonexistent profile did not fail"; exit 1
+          fi
+          grep -q "failed to get shared config profile" probe2neg.txt
+      - name: Terraform cycle (apply, no-op plan, destroy, apply, destroy)
+        run: |
+          terraform -chdir="$TF_DIR" apply -auto-approve -input=false
+          # Exit code 0 means "no changes": the second plan after an apply must be empty.
+          terraform -chdir="$TF_DIR" plan -input=false -detailed-exitcode
+          terraform -chdir="$TF_DIR" destroy -auto-approve -input=false
+          # Apply after destroy exercises the secrets recovery_window_in_days = 0 variable.
+          terraform -chdir="$TF_DIR" apply -auto-approve -input=false
+          terraform -chdir="$TF_DIR" destroy -auto-approve -input=false
+      - name: hadolint (both Dockerfiles)
+        id: hadolint
+        if: always()
+        continue-on-error: true
+        run: |
+          status=0
+          docker run --rm -i "$HADOLINT_IMAGE" /bin/hadolint --format json - < Dockerfile > hadolint-api.json || status=1
+          docker run --rm -i "$HADOLINT_IMAGE" /bin/hadolint --format json - < docker/firebase-emulator/Dockerfile > hadolint-emulator.json || status=1
+          exit "$status"
+      - name: Build images
+        id: build
+        if: always()
+        run: |
+          docker build -t orbit-api:ci .
+          docker build -t orbit-firebase-emulator:ci docker/firebase-emulator
+      - name: Trivy API image (gating on HIGH,CRITICAL; honors .trivyignore)
+        id: trivy-api
+        if: always() && steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY_IMAGE" \
+            image --severity HIGH,CRITICAL --exit-code 1 --format json --output /src/trivy-api.json orbit-api:ci
+      - name: Trivy emulator image (advisory per OQ10, counts only, never fails)
+        id: trivy-emulator
+        if: always() && steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY_IMAGE" \
+            image --severity HIGH,CRITICAL --exit-code 0 --format json --output /src/trivy-emulator.json orbit-firebase-emulator:ci
+          echo "advisory emulator findings (HIGH,CRITICAL): $(jq '[.Results[]?.Vulnerabilities[]?] | length' trivy-emulator.json)"
+      - name: Checkov (infra/envs/local, resolving the local modules)
+        id: checkov
+        if: always()
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src "$CHECKOV_IMAGE" \
+            -d /src/infra/envs/local -o cli -o json --output-file-path console,/src/checkov-local.json
+      - name: Scanner liveness + verdict
+        if: always()
+        run: |
+          fail=0
+          for artifact in hadolint-api.json hadolint-emulator.json trivy-api.json trivy-emulator.json checkov-local.json; do
+            if ! jq -e . "$artifact" >/dev/null 2>&1; then
+              echo "::error::$artifact missing or not parseable - a scanner that never ran is not a clean scan"; fail=1
+            fi
+          done
+          # trivy-emulator is advisory, so its outcome is deliberately not checked here.
+          if [ "${{ steps.hadolint.outcome }}" = "failure" ]; then echo "::error::hadolint reported findings"; fail=1; fi
+          if [ "${{ steps.trivy-api.outcome }}" = "failure" ]; then echo "::error::Trivy failed on the API image"; fail=1; fi
+          if [ "${{ steps.checkov.outcome }}" = "failure" ]; then echo "::error::Checkov failed checks"; fail=1; fi
+          exit $fail
+
   # dast-baseline — filled per plan/dast-plan.md when the app has a bootable HTTP surface:
   # boot the app (service container or <START_CMD>), run the ZAP passive baseline against
   # it, then scripts/ci/dast-review.sh vs the committed dast-budget.json (blocking on High
